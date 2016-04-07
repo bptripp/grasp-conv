@@ -10,6 +10,7 @@ from OpenGL.GLU import *
 def loadOBJ(filename):
     """
     Adapted from http://www.nandnor.net/?p=86
+    See also http://paulbourke.net/dataformats/obj/
     """
     verts = []
     faces = []
@@ -19,7 +20,11 @@ def loadOBJ(filename):
             v = map(float, vals[1:4])
             verts.append(v)
         if vals[0] == "f":
-            f = map(int, vals[1:4])
+            # f = map(int, vals[1:4])
+            f = []
+            for v in vals[1:]:
+                w = v.split("/")
+                f.append(int(w[0]))
             faces.append(f)
     return verts, faces
 
@@ -96,7 +101,7 @@ if __name__ == '__main__':
 
     new_verts = move_vertices(gripper_pos, gripper_orient, verts)
 
-    d = Display()
+    d = Display(imsize=(50,50))
     d.set_mesh(new_verts, faces)
     depth = d.read_depth()
 
