@@ -86,8 +86,8 @@ def make_depth_from_gripper(obj_filename, param_filename):
     c = 0
     for line in open(param_filename, "r"):
         print(c)
-        if c == 20:
-            break
+        # if c == 50:
+        #     break
         c = c + 1
 
         vals = line.split(',')
@@ -105,7 +105,6 @@ def make_depth_from_gripper(obj_filename, param_filename):
 
     d.close()
     return np.array(depths), np.array(labels)
-
 
 
 if __name__ == '__main__':
@@ -132,29 +131,29 @@ if __name__ == '__main__':
     # plt.imshow(source.X[0,0,:,:])
     # plt.show()
 
-    # shapes = ['24_bowl-02-Mar-2016-07-03-29',
-    #     '24_bowl-03-Mar-2016-22-54-50',
-    #     '24_bowl-05-Mar-2016-13-53-41',
-    #     '24_bowl-07-Mar-2016-05-06-04',
-    #     '24_bowl-16-Feb-2016-10-12-27',
-    #     '24_bowl-17-Feb-2016-22-00-34',
-    #     '24_bowl-24-Feb-2016-17-38-53',
-    #     '24_bowl-26-Feb-2016-08-35-29',
-    #     '24_bowl-27-Feb-2016-23-52-43',
-    #     '24_bowl-29-Feb-2016-15-01-53']
+    shapes = ['24_bowl-02-Mar-2016-07-03-29',
+        '24_bowl-03-Mar-2016-22-54-50',
+        '24_bowl-05-Mar-2016-13-53-41',
+        '24_bowl-07-Mar-2016-05-06-04',
+        '24_bowl-16-Feb-2016-10-12-27',
+        '24_bowl-17-Feb-2016-22-00-34',
+        '24_bowl-24-Feb-2016-17-38-53',
+        '24_bowl-26-Feb-2016-08-35-29',
+        '24_bowl-27-Feb-2016-23-52-43',
+        '24_bowl-29-Feb-2016-15-01-53']
+    #
+    # # shapes = ['24_bowl-02-Mar-2016-07-03-29']
+    #
+    # for shape in shapes:
+    #     depths, labels = make_depth_from_gripper('../data/obj_files/' + shape + '.obj',
+    #                             '../data/params/' + shape + '.csv')
+    #     f = file('../data/' + shape + '.pkl', 'wb')
+    #     cPickle.dump((depths, labels), f)
+    #     f.close()
 
-    shapes = ['24_bowl-02-Mar-2016-07-03-29']
-
-    for shape in shapes:
-        depths, labels = make_depth_from_gripper('../data/obj_files/' + shape + '.obj',
-                                '../data/params/' + shape + '.csv')
-        f = file('../data/' + shape + '.pkl', 'wb')
-        cPickle.dump((depths, labels), f)
-        f.close()
-
-    # f = file('../data/' + shapes[0] + '.pkl', 'rb')
-    # (depths, labels) = cPickle.load(f)
-    # f.close()
+    f = file('../data/' + shapes[0] + '.pkl', 'rb')
+    (depths, labels) = cPickle.load(f)
+    f.close()
 
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import axes3d, Axes3D
