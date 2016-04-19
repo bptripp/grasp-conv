@@ -4,10 +4,11 @@ __author__ = 'bptripp'
 
 import numpy as np
 from keras.models import Sequential
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, AveragePooling2D
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.optimizers import Adam
 import cPickle
+from tuning import disp_tuning
 
 def get_bowls():
     shapes = ['24_bowl-02-Mar-2016-07-03-29',
@@ -24,7 +25,7 @@ def get_bowls():
     depths = []
     labels = []
     for shape in shapes:
-        f = file('../data/' + shape + '.pkl', 'rb')
+        f = open('../data/' + shape + '.pkl', 'rb')
         (d, l) = cPickle.load(f)
         f.close()
         depths.extend(d.tolist())
@@ -34,53 +35,69 @@ def get_bowls():
 
 
 imsize = (80,80)
+centres = np.arange(1,1.9,.1)
 
 model = Sequential()
-model.add(Convolution2D(32, 7, 7, input_shape=(1,imsize[0],imsize[1]), init='glorot_normal'))
+#model.add(AveragePooling2D())
+model.add(Convolution2D(32, 15, 15, input_shape=(len(centres),imsize[0],imsize[1]), init='glorot_normal'))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
-model.add(Convolution2D(48, 5, 5, init='glorot_normal'))
+model.add(Dropout(.5))
+model.add(Convolution2D(32, 5, 5, init='glorot_normal'))
 model.add(Activation('relu'))
-model.add(Convolution2D(64, 3, 3, init='glorot_normal'))
-model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2,2)))
+model.add(Dropout(.5))
+#model.add(Convolution2D(32, 5, 5, init='glorot_normal'))
+#model.add(Activation('relu'))
+#model.add(Dropout(.5))
 model.add(Flatten())
-model.add(Dense(256))
+model.add(Dense(64))
 model.add(Activation('relu'))
 model.add(Dropout(.5))
 model.add(Dense(1))
 model.add(Activation('sigmoid'))
 
-adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 model.compile(loss='binary_crossentropy', optimizer=adam)
 
 depths, labels = get_bowls()
 
+depths = np.max(depths.flatten()) - depths # more like disparity; background zero
+sigma = np.std(depths.flatten())
+depths = depths / sigma
+
+width = .1
 n_train = 7000
-X_train = np.zeros((n_train, 1, imsize[0], imsize[1]))
+X_train = np.zeros((n_train, len(centres), imsize[0], imsize[1]))
 Y_train = np.zeros(n_train)
 fail_count = 0
 success_count = 0
 i = 0
 while fail_count < n_train/2 or success_count < n_train/2:
-    print(i)
-    if labels[i] > .5 and success_count < n_train/2:
-        X_train[fail_count+success_count,0,:,:] = depths[i,:,:]
-        Y_train[fail_count+success_count] = labels[i]
-        success_count = success_count + 1
-    if labels[i] <= .5 and fail_count < n_train/2:
-        X_train[fail_count+success_count,0,:,:] = depths[i,:,:]
-        Y_train[fail_count+success_count] = labels[i]
-        fail_count = fail_count + 1
+    if np.mod(i, 1000) < 900:
+        if labels[i] > .5 and success_count < n_train/2:
+            X_train[fail_count+success_count,:,:,:] = disp_tuning(depths[i,:,:], centres, width)
+            Y_train[fail_count+success_count] = labels[i]
+            success_count = success_count + 1
+            #print('adding ' + str(i) + ' to train')
+        if labels[i] <= .5 and fail_count < n_train/2:
+            X_train[fail_count+success_count,:,:,:] = disp_tuning(depths[i,:,:], centres, width)
+            Y_train[fail_count+success_count] = labels[i]
+            fail_count = fail_count + 1
+            #print('adding ' + str(i) + ' to train')
     i = i + 1
 
 
 n_valid = 350
-start_valid = 9000
-X_valid = np.zeros((n_valid, 1, imsize[0], imsize[1]))
+X_valid = np.zeros((n_valid, len(centres), imsize[0], imsize[1]))
 Y_valid = np.zeros(n_valid)
-for i in range(n_valid):
-    X_valid[i,0,:,:] = depths[start_valid+i,:,:]
-    Y_valid[i] = labels[start_valid+i]
+valid_count = 0
+for i in range(len(labels)):
+    if valid_count < n_valid and np.mod(i, 1000) >= 900: 
+        #print('adding ' + str(i) + ' to valid')
+        X_valid[valid_count,:,:,:] = disp_tuning(depths[i,:,:], centres, width)
+        Y_valid[valid_count] = labels[i]
+        valid_count = valid_count + 1
 
 
 # #balance training data: first 50 successes and first 50 failures
@@ -110,7 +127,7 @@ for i in range(n_valid):
 # Y_valid = source.Y[950:]
 
 
-h = model.fit(X_train, Y_train, batch_size=32, nb_epoch=100, show_accuracy=True, validation_data=(X_valid, Y_valid))
+h = model.fit(X_train, Y_train, batch_size=32, nb_epoch=500, show_accuracy=True, validation_data=(X_valid, Y_valid))
 
 Y_predict = model.predict(X_valid)
 print(Y_predict)
