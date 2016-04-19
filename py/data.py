@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
     # shapes = ['24_bowl-02-Mar-2016-07-03-29']
 
-    n = 10 #TODO: check and increase
+    n = 10000
     for shape in shapes:
         depths, labels = make_random_depths('../data/obj_files/' + shape + '.obj',
                                             '../data/params/' + shape + '.csv',
@@ -231,41 +231,41 @@ if __name__ == '__main__':
         cPickle.dump((depths, labels), f)
         f.close()
 
-    f = file('../data/' + shapes[0] + '-random.pkl', 'rb')
-    (depths, labels) = cPickle.load(f)
-    f.close()
-
-    print(labels)
-
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import axes3d, Axes3D
-
-    depths = depths.astype(float)
-    depths[depths > np.max(depths.flatten()) - 1] = np.NaN
-
-    X = np.arange(0, depths.shape[1])
-    Y = np.arange(0, depths.shape[2])
-    X, Y = np.meshgrid(X, Y)
-    fig = plt.figure(figsize=(12,6))
-    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    plt.xlabel('x')
-    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-    plt.xlabel('x')
-    # ax = Axes3D(fig)
-    # for i in range(depths.shape[0]):
-    s = 5 #pixel stride
-    for i in range(n):
-        if labels[i] > .5:
-            color = 'g'
-            ax = ax1
-            ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
-        else:
-            color = 'r'
-            ax = ax2
-            if np.random.rand(1) < .5:
-                ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
-        # plt.title(str(i) + ': ' + str(labels[i]))
-    plt.show()
+    # f = file('../data/' + shapes[0] + '-random.pkl', 'rb')
+    # (depths, labels) = cPickle.load(f)
+    # f.close()
+    #
+    # print(labels)
+    #
+    # import matplotlib.pyplot as plt
+    # from mpl_toolkits.mplot3d import axes3d, Axes3D
+    #
+    # depths = depths.astype(float)
+    # depths[depths > np.max(depths.flatten()) - 1] = np.NaN
+    #
+    # X = np.arange(0, depths.shape[1])
+    # Y = np.arange(0, depths.shape[2])
+    # X, Y = np.meshgrid(X, Y)
+    # fig = plt.figure(figsize=(12,6))
+    # ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+    # plt.xlabel('x')
+    # ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    # plt.xlabel('x')
+    # # ax = Axes3D(fig)
+    # # for i in range(depths.shape[0]):
+    # s = 5 #pixel stride
+    # for i in range(n):
+    #     if labels[i] > .5:
+    #         color = 'g'
+    #         ax = ax1
+    #         ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
+    #     else:
+    #         color = 'r'
+    #         ax = ax2
+    #         if np.random.rand(1) < .5:
+    #             ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
+    #     # plt.title(str(i) + ': ' + str(labels[i]))
+    # plt.show()
 
 
     # shape = '24_bowl-02-Mar-2016-07-03-29'
