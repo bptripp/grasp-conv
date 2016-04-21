@@ -4,7 +4,7 @@ __author__ = 'bptripp'
 
 import numpy as np
 import cPickle
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 def disp_tuning(depth, centres, width):
     X = np.zeros((len(centres), depth.shape[0], depth.shape[1]))
