@@ -164,28 +164,22 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_mean - plot_radius, z_mean + plot_radius])
 
 
-if __name__ == '__main__':
+# Adapted from http://web.archive.org/web/20130416194336/http://olivers.posterous.com/linear-depth-in-glsl-for-real
+def get_distance(GL_depth, clip_near, clip_far):
+    #TODO: scale to -1 to 1?
+    z_b = GL_depth / 2147483647.0 # 2**32/2-1
+    z_n = 2.0 * z_b - 1.0
+    return 2.0 * clip_near * clip_far / (clip_far + clip_near - z_n * (clip_far - clip_near))
+
+
+def check_gripper_points_to_example_object():
     filename = '../data/obj_files/24_bowl-02-Mar-2016-07-03-29.obj'
     verts, faces = loadOBJ(filename)
-    # gripper_pos = [0.1171, -0.1033, 0.3716]
-    # gripper_orient = [-2.5501, -0.2180, 0.6896]
-    # gripper_pos = [0, 0, 0]
-    # gripper_orient = [.0, .5, 0]
-
-    # gripper_pos = [0.0061987, 0.14162, 0.36628]
-    # gripper_orient = [2.6618, 0.21054, 0.81548]
     gripper_pos = [0.12086, -0.026054, 0.40646]
-    gripper_orient = [3.0652, -0.2162, -2.4642] #negative rotations?
-
-    # rot_matrix(gripper_orient[0], gripper_orient[1], gripper_orient[2])
-
+    gripper_orient = [3.0652, -0.2162, -2.4642]
     verts = np.array(verts)
     minz = np.min(verts, axis=0)[2]
     verts[:,2] = verts[:,2] + 0.2 - minz
-    # new_verts = move_vertices(gripper_pos, gripper_orient, verts)
-
-    # look_at = np.dot(rot_matrix(gripper_orient[0], gripper_orient[1], gripper_orient[2]), [0, 0, 1])
-    # print(look_at)
 
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import axes3d, Axes3D
@@ -211,23 +205,41 @@ if __name__ == '__main__':
     plt.show()
 
 
-    # d = Display(imsize=(100,100))
-    # d.set_camera_position(gripper_pos, gripper_orient, .3)
-    # # d.set_camera_position([0, 0, 0], [0., 0, 0], .5)
-    # d.set_mesh(verts, faces)
-    # # d.set_mesh(verts, faces)
-    # depth = d.read_depth()
-    # d.close()
-    #
-    # # depth[depth == np.max(depth.flatten())] = 0
-    #
-    # fig = plt.figure()
-    # ax = Axes3D(fig)
-    # X = np.arange(0, 100)
-    # Y = np.arange(0, 100)
-    # X, Y = np.meshgrid(X, Y)
-    # ax.plot_wireframe(X, Y, depth)
-    # plt.show()
+
+
+if __name__ == '__main__':
+    # check_gripper_points_to_example_object()
+
+    filename = '../data/obj_files/24_bowl-02-Mar-2016-07-03-29.obj'
+    verts, faces = loadOBJ(filename)
+    # gripper_pos = [0.1171, -0.1033, 0.3716]
+    # gripper_orient = [-2.5501, -0.2180, 0.6896]
+    gripper_pos = [0.12086, -0.026054, 0.40646]
+    gripper_orient = [3.0652, -0.2162, -2.4642]
+
+    verts = np.array(verts)
+    minz = np.min(verts, axis=0)[2]
+    verts[:,2] = verts[:,2] + 0.2 - minz
+
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import axes3d, Axes3D
+
+    camera_offset = .3 #distance of camera behind hand
+    d = Display(imsize=(100,100))
+    d.set_camera_position(gripper_pos, gripper_orient, camera_offset)
+    d.set_mesh(verts, faces)
+    depth = d.read_depth()
+    d.close()
+
+    distance = get_distance(depth, .2, 1.0)
+
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    X = np.arange(0, 100)
+    Y = np.arange(0, 100)
+    X, Y = np.meshgrid(X, Y)
+    ax.plot_wireframe(X, Y, distance-camera_offset)
+    plt.show()
 
     # plt.imshow(depth, cmap='gray')
     # plt.savefig('test.png')
