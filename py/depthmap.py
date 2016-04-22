@@ -218,10 +218,10 @@ if __name__ == '__main__':
     # gripper_orient = [-2.5501, -0.2180, 0.6896]
     # gripper_pos = [0.12086, -0.026054, 0.40646] #0
     # gripper_orient = [3.0652, -0.2162, -2.4642]
-    # gripper_pos = [-0.0032092, -0.020568, 0.31387] #1
-    # gripper_orient = [2.9522, 0.086032, 0.85106]
-    gripper_pos = [0.0061987, 0.14162, 0.36628] #1
-    gripper_orient = [2.6618, 0.21054, 0.81548]
+    gripper_pos = [-0.0032092, -0.020568, 0.31387] #1
+    gripper_orient = [2.9522, 0.086032, 0.85106]
+    # gripper_pos = [0.0061987, 0.14162, 0.36628] #1
+    # gripper_orient = [2.6618, 0.21054, 0.81548]
     # gripper_pos = [-0.041813, 0.070214, 0.39611] #1
     # gripper_orient = [3.1211, -0.069899, -2.572]
     # gripper_pos = [0.16012, -0.12052, 0.31101] #1
@@ -234,7 +234,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import axes3d, Axes3D
 
-    camera_offset = .3 #distance of camera behind hand
+    camera_offset = .5 #distance of camera behind hand
     im_width = 40
 
     d = Display(imsize=(im_width,im_width))
@@ -253,15 +253,18 @@ if __name__ == '__main__':
     Y = np.arange(0, im_width)
     X, Y = np.meshgrid(X, Y)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1,1,1,projection='3d')
-    # ax = fig.add_subplot(1,2,1,projection='3d')
-    # ax.plot_wireframe(X, Y, distance-camera_offset)
-    ax.plot_wireframe(X, Y, distance)
-    # ax = fig.add_subplot(1,2,2,projection='3d')
-    ax.plot_wireframe(X, Y, template, color='r')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1,1,1,projection='3d')
+    # ax.plot_wireframe(X, Y, distance)
+    # ax.plot_wireframe(X, Y, template, color='r')
+    # plt.show()
 
-    plt.show()
+    from heuristic import calculate_grip_metrics
+    intersections, qualities = calculate_grip_metrics(distance, template)
+    print(intersections)
+    print(qualities)
+
+
 
 
 

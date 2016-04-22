@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 # Fingers don't extend fully, max 40deg from straight. First segment .07m; second .058m
 # I have estimated the hand origin in MeshLab from a mesh exported from V-REP
 
+
 def finger_path_template(fov, im_width, camera_offset, finger_width=.025, finger_xyz=(.025,.05,.013)):
     """
     :param fov: camera field of view (radians!!!)
@@ -30,23 +31,24 @@ def finger_path_template(fov, im_width, camera_offset, finger_width=.025, finger
             finger_half_width_rad = np.arctan(finger_width/2./depths[pixel])
             finger_half_width_pixels = finger_half_width_rad / rads_per_pixel
 
-            min_finger = np.floor(im_width/2-finger_half_width_pixels+.5)
-            max_finger = np.ceil(im_width/2+finger_half_width_pixels+.5)
+            min_finger = int(np.floor(im_width/2-finger_half_width_pixels+.5))
+            max_finger = int(np.ceil(im_width/2+finger_half_width_pixels+.5))
             template[min_finger:max_finger,im_width/2+pixel] = depths[pixel] #TODO: clean up offset
 
             finger_x_pixels = np.arctan(finger_xyz[0]/depths[pixel]) /rads_per_pixel # x offset of paired fingers
 
-            min_finger = np.floor(im_width/2+finger_x_pixels-finger_half_width_pixels+.5)
-            max_finger = np.ceil(im_width/2+finger_x_pixels+finger_half_width_pixels+.5)
+            min_finger = int(np.floor(im_width/2+finger_x_pixels-finger_half_width_pixels+.5))
+            max_finger = int(np.ceil(im_width/2+finger_x_pixels+finger_half_width_pixels+.5))
             template[min_finger:max_finger,im_width/2-1-pixel] = depths[pixel]
 
-            min_finger = np.floor(im_width/2-finger_x_pixels-finger_half_width_pixels+.5)
-            max_finger = np.ceil(im_width/2-finger_x_pixels+finger_half_width_pixels+.5)
+            min_finger = int(np.floor(im_width/2-finger_x_pixels-finger_half_width_pixels+.5))
+            max_finger = int(np.ceil(im_width/2-finger_x_pixels+finger_half_width_pixels+.5))
             template[min_finger:max_finger,im_width/2-1-pixel] = depths[pixel]
 
     # plt.imshow(template)
     # plt.show()
     return template
+
 
 def finger_depth(camera_angle, camera_offset, finger_length=.12, finger_yz=(.05,0.013), finger_ext=.31):
     # finger_ext: angle from finger CoR to tip at max extension
@@ -65,6 +67,50 @@ def finger_depth(camera_angle, camera_offset, finger_length=.12, finger_yz=(.05,
         y = y0 + l*np.sin(b)
         result = np.sqrt(y**2+z**2)
     return result
+
+
+def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_size=3):
+    overlap = np.maximum(0, finger_path - depth_map)
+
+    # TODO: update this if template orientation wrong
+
+    # find first overlap from outside to centre in three regions
+    s = depth_map.shape
+    regions = [[0,s[0]/2,0,s[1]/2],
+            [s[0]/2,s[0],0,s[1]/2],
+            [s[0]/4,3*s[0]/4,s[1],s[1]/2]]
+    close_directions = [1,1,-1]
+
+    intersections = []
+    qualities = []
+    for region, direction in zip(regions, close_directions):
+        region_overlap = overlap[region[0]:region[1],region[2]:region[3]:direction]
+
+        #running max to avoid penalizing grasping outside of concave shape ...
+        region_overlap = np.maximum.accumulate(region_overlap, axis=1)
+
+        p = np.sum(region_overlap, axis=0)
+        if True in (p>0).tolist():
+            intersection = (p>0).tolist().index(True)
+        else:
+            intersection = None
+        intersections.append(intersection)
+
+        region_finger = finger_path[region[0]:region[1],region[2]:region[3]:direction]
+        region_finger = saturation_distance * np.array(region_finger > 0).astype(float)
+
+        region_overlap = np.minimum(region_overlap, saturation_distance)
+        if intersection is None:
+            quality = 0
+        else:
+            sub_region_overlap = region_overlap[:,intersection:intersection+box_size]
+            sub_region_finger = region_finger[:,intersection:intersection+box_size]
+            quality = np.sum(sub_region_overlap.flatten()) / np.sum(sub_region_finger.flatten())
+
+        qualities.append(quality)
+
+    return intersections, qualities
+
 
 if __name__ == '__main__':
     finger_path_template(45.*np.pi/180., 40, .3)
