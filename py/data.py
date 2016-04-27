@@ -121,7 +121,7 @@ def make_random_depths(obj_filename, param_filename, n, im_size=(40,40)):
     for i in range(n):
         point = get_interpolated_point(points)
 
-        estimate, confidence = get_prob_label(points, labels, point)
+        estimate, confidence = get_prob_label(points, labels, point, sigma_p=2*.001, sigma_a=2*(4*np.pi/180))
         probs.append(estimate)
 
         gripper_pos = point[:3]
