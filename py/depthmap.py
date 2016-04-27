@@ -96,10 +96,15 @@ class Display(object):
         glLoadIdentity()
         gluPerspective(fov, (self.imsize[0]/self.imsize[1]), near_clip, far_clip)
 
-    def set_camera_position(self, pos, orient, offset):
-        look_from = pos - np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 0, offset])
+    def set_camera_position(self, pos, rot, offset):
+        #rot: rotation matrix
+        # look_from = pos - np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 0, offset])
+        look_from = pos - np.dot(rot, [0, 0, offset])
         look_at = pos
-        up = np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 1, 0])
+        print(look_from)
+        print(look_at)
+        # up = np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 1, 0])
+        up = np.dot(rot, [0, 1, 0])
         # print(look_from)
         # print(look_at)
         # print(up)
@@ -216,14 +221,16 @@ if __name__ == '__main__':
     verts, faces = loadOBJ(filename)
     # gripper_pos = [0.1171, -0.1033, 0.3716]
     # gripper_orient = [-2.5501, -0.2180, 0.6896]
-    # gripper_pos = [0.12086, -0.026054, 0.40646] #0
+    # gripper_pos = [0.12086, -0.026054, 0.40646] #0; number 1
     # gripper_orient = [3.0652, -0.2162, -2.4642]
-    gripper_pos = [-0.0032092, -0.020568, 0.31387] #1
-    gripper_orient = [2.9522, 0.086032, 0.85106]
-    # gripper_pos = [0.0061987, 0.14162, 0.36628] #1
+    # gripper_pos = [-0.0032092, -0.020568, 0.31387] #1; number 2
+    # gripper_orient = [2.9522, 0.086032, 0.85106]
+    # gripper_pos = [0.085944, 0.046448, 0.31324] #number 3
+    # gripper_orient = [3.0936, 0.11448, 2.3479]
+    # gripper_pos = [0.0061987, 0.14162, 0.36628] #1; number 4
     # gripper_orient = [2.6618, 0.21054, 0.81548]
-    # gripper_pos = [-0.041813, 0.070214, 0.39611] #1
-    # gripper_orient = [3.1211, -0.069899, -2.572]
+    gripper_pos = [-0.041813, 0.070214, 0.39611] #1; number 5
+    gripper_orient = [3.1211, -0.069899, -2.572]
     # gripper_pos = [0.16012, -0.12052, 0.31101] #1
     # gripper_orient = [-2.3409, -0.80459, 1.5763]
 
@@ -238,7 +245,8 @@ if __name__ == '__main__':
     im_width = 40
 
     d = Display(imsize=(im_width,im_width))
-    d.set_camera_position(gripper_pos, gripper_orient, camera_offset)
+    rot = rot_matrix(gripper_orient[0], gripper_orient[1], gripper_orient[2])
+    d.set_camera_position(gripper_pos, rot, camera_offset)
     d.set_mesh(verts, faces)
     depth = d.read_depth()
     d.close()
@@ -253,16 +261,22 @@ if __name__ == '__main__':
     Y = np.arange(0, im_width)
     X, Y = np.meshgrid(X, Y)
 
-    # fig = plt.figure()
-    # ax = fig.add_subplot(1,1,1,projection='3d')
-    # ax.plot_wireframe(X, Y, distance)
-    # ax.plot_wireframe(X, Y, template, color='r')
-    # plt.show()
+    distance = distance[:,::-1] # x flipped to match V-REP
 
     from heuristic import calculate_grip_metrics
     intersections, qualities = calculate_grip_metrics(distance, template)
     print(intersections)
     print(qualities)
+
+    fig = plt.figure()
+    distance[distance > camera_offset + .3] = None
+    template[template < camera_offset] = None
+    ax = fig.add_subplot(1,1,1,projection='3d')
+    ax.plot_wireframe(X, Y, distance)
+    ax.plot_wireframe(X, Y, template, color='r')
+    ax.set_xlabel('x')
+    plt.show()
+
 
 
 
