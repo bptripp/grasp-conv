@@ -101,8 +101,8 @@ class Display(object):
         # look_from = pos - np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 0, offset])
         look_from = pos - np.dot(rot, [0, 0, offset])
         look_at = pos
-        print(look_from)
-        print(look_at)
+        # print(look_from)
+        # print(look_at)
         # up = np.dot(rot_matrix(orient[0], orient[1], orient[2]), [0, 1, 0])
         up = np.dot(rot, [0, 1, 0])
         # print(look_from)

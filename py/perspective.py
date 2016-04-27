@@ -71,12 +71,6 @@ def from_quaternion(e):
     return np.array(rm)
 
 
-def get_depth_map(point, angle):
-    # angles are hoizontal from looking at zero; vertical from looking at zero; around camera axis (all rads)
-    #TODO: calculate look_at, up
-    pass
-
-
 def check_rotation_matrix(scatter=False):
     from mpl_toolkits.mplot3d import axes3d, Axes3D
 
@@ -121,11 +115,7 @@ def check_quaternion():
     assert np.std(error.flatten()) < 1e-6
 
 
-if __name__ == '__main__':
-    # check_rotation_matrix(scatter=True)
-    # check_quaternion()
-
-    # checking depth map from random perspective
+def check_depth_from_random_perspective():
     from depthmap import loadOBJ, Display
     filename = '../data/obj_files/24_bowl-02-Mar-2016-07-03-29.obj'
     verts, faces = loadOBJ(filename)
@@ -135,7 +125,6 @@ if __name__ == '__main__':
     minz = np.min(verts, axis=0)[2]
     maxz = np.max(verts, axis=0)[2]
     verts[:,2] = verts[:,2] - (minz+maxz)/2
-    # print(np.mean(verts, axis=0))
 
     n = 6
     points = get_random_points(n, .25)
@@ -143,10 +132,7 @@ if __name__ == '__main__':
     point = points[:,0]
     angle = angles[:,0]
 
-    # # rot = get_rotation_matrix(points[:,0], angles[:,0])
-    # point = np.array([1e-6,.2,1e-6])
     rot = get_rotation_matrix(point, angle)
-    print(rot)
 
     im_width = 80
     d = Display(imsize=(im_width,im_width))
@@ -167,10 +153,81 @@ if __name__ == '__main__':
     plt.show()
 
 
-    # fig = plt.figure(figsize=(10,5))
-    # ax = fig.add_subplot(1,2,1,projection='3d')
-    # ax.scatter(points[0,:], points[1,:], points[2,:])
-    # ax = fig.add_subplot(1,2,2,projection='3d')
-    # ax.scatter(angles[0,:], angles[1,:], angles[2,:])
+def plot_random_samples():
+    n = 1000
+    points = get_random_points(n, .25)
+    angles = get_random_angles(n)
+
+    from mpl_toolkits.mplot3d import axes3d, Axes3D
+    fig = plt.figure(figsize=(10,5))
+    ax = fig.add_subplot(1,2,1,projection='3d')
+    ax.scatter(points[0,:], points[1,:], points[2,:])
+    ax = fig.add_subplot(1,2,2,projection='3d')
+    ax.scatter(angles[0,:], angles[1,:], angles[2,:])
+    plt.show()
+
+
+def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.2, far_clip=1.0, fov=45, camera_offset=.4):
+    from depthmap import loadOBJ, Display, get_distance
+    verts, faces = loadOBJ(obj_filename)
+
+    # put vertical centre at zero
+    verts = np.array(verts)
+    minz = np.min(verts, axis=0)[2]
+    maxz = np.max(verts, axis=0)[2]
+    verts[:,2] = verts[:,2] - (minz+maxz)/2
+
+    d = Display(imsize=(im_width,im_width))
+    d.set_perspective(fov=fov, near_clip=near_clip, far_clip=far_clip)
+    perspectives = np.zeros((points.shape[1],im_width,im_width), dtype='float32')
+    for i in range(points.shape[1]):
+        point = points[:,i]
+        angle = angles[:,i]
+        rot = get_rotation_matrix(point, angle)
+        d.set_camera_position(point, rot, camera_offset)
+        d.set_mesh(verts, faces)
+        depth = d.read_depth()
+        distance = get_distance(depth, near_clip, far_clip)
+        perspectives[i,:,:] = distance
+    d.close()
+    return perspectives
+
+
+if __name__ == '__main__':
+    # check_rotation_matrix(scatter=True)
+    # check_quaternion()
+    # check_depth_from_random_perspective()
+    # plot_random_samples()
+
+    import cPickle
+    import time
+
+    obj_name = '24_bowl-02-Mar-2016-07-03-29'
+    obj_filename = '../data/obj_files/' + obj_name + '.obj'
+    n = 100
+    points = get_random_points(n, .25)
+    angles = get_random_angles(n)
+
+    start_time = time.time()
+    perspectives = get_perspectives(obj_filename, points, angles)
+    gen_time = time.time() - start_time
+    print(gen_time)
+
+    perspective_filename = '../data/perspectives/' + obj_name + '.pkl'
+    f = open(perspective_filename, 'wb')
+    cPickle.dump(perspectives, f)
+    f.close()
+    save_time = time.time() - start_time - gen_time
+    print(save_time)
+
+    # X = np.arange(0, 80)
+    # Y = np.arange(0, 80)
+    # X, Y = np.meshgrid(X, Y)
+    #
+    # from mpl_toolkits.mplot3d import axes3d, Axes3D
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1,1,1,projection='3d')
+    # ax.plot_wireframe(X, Y, perspectives[0,:,:])
+    # ax.set_xlabel('x')
     # plt.show()
 
