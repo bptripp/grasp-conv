@@ -2,6 +2,7 @@ __author__ = 'bptripp'
 
 import numpy as np
 import matplotlib.pyplot as plt
+import cPickle
 
 
 def get_random_points(n, radius, surface=False):
@@ -193,32 +194,58 @@ def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.2, fa
     return perspectives
 
 
+def process_directory(obj_dir, data_dir, n):
+    from os import listdir
+    from os.path import isfile, join
+    import time
+
+    for f in listdir(obj_dir):
+        obj_filename = join(obj_dir, f)
+        if isfile(obj_filename) and f.endswith('.obj'):
+            data_filename = join(data_dir, f[:-4] + '.pkl')
+            if isfile(data_filename):
+                print('Skipping ' + f)
+            else:
+                print('Processing ' + f)
+                start_time = time.time()
+                points = get_random_points(n, .25)
+                angles = get_random_angles(n)
+
+                perspectives = get_perspectives(obj_filename, points, angles)
+
+                f = open(data_filename, 'wb')
+                cPickle.dump(perspectives, f)
+                f.close()
+                print('   ' + str(time.time()-start_time) + 's')
+
 if __name__ == '__main__':
     # check_rotation_matrix(scatter=True)
     # check_quaternion()
     # check_depth_from_random_perspective()
     # plot_random_samples()
 
-    import cPickle
-    import time
+    # process_directory('../data/obj_files/', '../data/perspectives/', 10)
+    process_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/perspectives/', 3000)
 
-    obj_name = '24_bowl-02-Mar-2016-07-03-29'
-    obj_filename = '../data/obj_files/' + obj_name + '.obj'
-    n = 100
-    points = get_random_points(n, .25)
-    angles = get_random_angles(n)
+    # import time
 
-    start_time = time.time()
-    perspectives = get_perspectives(obj_filename, points, angles)
-    gen_time = time.time() - start_time
-    print(gen_time)
-
-    perspective_filename = '../data/perspectives/' + obj_name + '.pkl'
-    f = open(perspective_filename, 'wb')
-    cPickle.dump(perspectives, f)
-    f.close()
-    save_time = time.time() - start_time - gen_time
-    print(save_time)
+    # obj_name = '24_bowl-02-Mar-2016-07-03-29'
+    # obj_filename = '../data/obj_files/' + obj_name + '.obj'
+    # n = 100
+    # points = get_random_points(n, .25)
+    # angles = get_random_angles(n)
+    #
+    # # start_time = time.time()
+    # perspectives = get_perspectives(obj_filename, points, angles)
+    # # gen_time = time.time() - start_time
+    # # print(gen_time)
+    #
+    # perspective_filename = '../data/perspectives/' + obj_name + '.pkl'
+    # f = open(perspective_filename, 'wb')
+    # cPickle.dump(perspectives, f)
+    # f.close()
+    # # save_time = time.time() - start_time - gen_time
+    # # print(save_time)
 
     # X = np.arange(0, 80)
     # Y = np.arange(0, 80)
