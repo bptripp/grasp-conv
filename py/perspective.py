@@ -3,6 +3,7 @@ __author__ = 'bptripp'
 import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
+from scipy.optimize import bisect
 
 
 def get_random_points(n, radius, surface=False):
@@ -154,6 +155,35 @@ def check_depth_from_random_perspective():
     plt.show()
 
 
+def find_vertical(point):
+    """
+    Find new angle[2] so that camera-up points up. In terms of rotation matrix,
+    R[2,0] should be 0 (x-axis horizontal) and R[2,1] should be positive (pointing
+    up rather than down).
+    """
+
+    def f(gamma):
+        return get_rotation_matrix(point, np.array([0, 0, gamma]))[2][0]
+
+    gamma = bisect(f, 0, np.pi)
+
+    if get_rotation_matrix(point, np.array([0, 0, gamma]))[2][1] < 0:
+        gamma = gamma + np.pi
+
+    return gamma
+
+
+def check_find_vertical():
+    n = 10
+    points = get_random_points(n, .35, surface=True)
+    for i in range(n):
+        point = points[:,i]
+        gamma = find_vertical(point)
+        rot = get_rotation_matrix(point, np.array([0, 0, gamma]))
+        if np.abs(rot[2,0] > 1e-6) or rot[2,1] < 0:
+            print('error with gamma: ' + str(gamma) + ' should be 0: ' + str(rot[2,0]) + ' should be +ve: ' + str(rot[2,1]))
+
+
 def plot_random_samples():
     n = 1000
     points = get_random_points(n, .25)
@@ -190,6 +220,8 @@ def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.2, fa
         depth = d.read_depth()
         distance = get_distance(depth, near_clip, far_clip)
         perspectives[i,:,:] = distance
+        # import time
+        # time.sleep(2)
     d.close()
     return perspectives
 
@@ -218,14 +250,73 @@ def process_directory(obj_dir, data_dir, n):
                 f.close()
                 print('   ' + str(time.time()-start_time) + 's')
 
+
+def process_eye_directory(obj_dir, data_dir, n):
+    from os import listdir
+    from os.path import isfile, join
+    import time
+
+    for f in listdir(obj_dir):
+        obj_filename = join(obj_dir, f)
+        if isfile(obj_filename) and f.endswith('.obj'):
+            data_filename = join(data_dir, f[:-4] + '.pkl')
+            if isfile(data_filename):
+                print('Skipping ' + f)
+            else:
+                print('Processing ' + f)
+                start_time = time.time()
+                points = get_random_points(n, .35, surface=True) #.75m with offset
+                angles = np.zeros_like(points)
+
+                # Set camera-up to vertical via third angle (angle needed is always
+                # 3pi/4, but we'll find it numerically in case other parts of code
+                # change while we're not looking).
+                for i in range(n):
+                    angles[2,i] = find_vertical(points[:,i])
+
+                perspectives = get_perspectives(obj_filename, points, angles, near_clip=.4, fov=30)
+
+                f = open(data_filename, 'wb')
+                cPickle.dump(perspectives, f)
+                f.close()
+                print('   ' + str(time.time()-start_time) + 's')
+
+
+def check_maps(data_dir):
+    from os import listdir
+    from os.path import isfile, join
+    for f in listdir(data_dir):
+        data_filename = join(data_dir, f)
+        if isfile(data_filename) and f.endswith('.pkl'):
+            print('Checking ' + f)
+            f = open(data_filename, 'rb')
+            perspectives = cPickle.load(f)
+            f.close()
+
+            for i in range(perspectives.shape[0]):
+                sd = np.std(perspectives[i,:,:].flatten())
+                if sd < 1e-3:
+                    print('   map ' + str(i) + ' is empty')
+
+
 if __name__ == '__main__':
     # check_rotation_matrix(scatter=True)
     # check_quaternion()
     # check_depth_from_random_perspective()
     # plot_random_samples()
+    # check_find_vertical()
 
     # process_directory('../data/obj_files/', '../data/perspectives/', 10)
     process_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/perspectives/', 3000)
+    # process_eye_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/eye-perspectives/', 100)
+    # check_maps('../../grasp-conv/data/perspectives/')
+
+    # points = get_random_points(3, .35, surface=True)
+    # print(points)
+    # angles = np.zeros_like(points)
+    # rot = get_rotation_matrix(np.array([-.047, -.249, -.241]), np.array([0, 0, -1.57+3.141]))
+    # print(rot)
+    # print(rot[0][0]**2 + rot[1][0]**2 + rot[2][0]**2)
 
     # import time
 
