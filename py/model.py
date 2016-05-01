@@ -14,11 +14,11 @@ from depthmap import get_distance
 
 def get_bowls():
     shapes = [
-        # '24_bowl-16-Feb-2016-10-12-27',
-        # '24_bowl-17-Feb-2016-22-00-34',
-        # '24_bowl-24-Feb-2016-17-38-53',
-        # '24_bowl-26-Feb-2016-08-35-29',
-        # '24_bowl-27-Feb-2016-23-52-43',
+        '24_bowl-16-Feb-2016-10-12-27',
+        '24_bowl-17-Feb-2016-22-00-34',
+        '24_bowl-24-Feb-2016-17-38-53',
+        '24_bowl-26-Feb-2016-08-35-29',
+        '24_bowl-27-Feb-2016-23-52-43',
         '24_bowl-29-Feb-2016-15-01-53']
 
     distances = []
@@ -40,6 +40,10 @@ def get_bowls():
 
 
 def make_datasets(distances, box_distances, labels):
+    # try more like disparity with zero background
+    distances = 1 - distances
+    box_distances = 1 - box_distances
+
     indices = np.arange(len(labels))
     validation_flags = indices % 10 == 9
     training_flags = ~validation_flags
@@ -90,6 +94,8 @@ model.add(Activation('sigmoid'))
 adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 model.compile(loss='mean_squared_error', optimizer=adam)
 
+from cninit import init_model
+init_model(model, X_train, Y_train)
 
 h = model.fit(X_train, Y_train, batch_size=32, nb_epoch=200, show_accuracy=True, validation_data=(X_valid, Y_valid))
 
