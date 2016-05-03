@@ -463,10 +463,11 @@ def calculate_grasp_metrics_for_directory(image_dir, im_width=80,
 
     all_intersections = []
     all_qualities = []
+    all_files = []
     for f in listdir(image_dir):
         image_filename = join(image_dir, f)
         if isfile(image_filename) and f.endswith('.png'):
-            print('Processing ' + image_filename)
+            # print('Processing ' + image_filename)
             image = scipy.misc.imread(image_filename)
             rescaled_distance = image / 255.0
             distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
@@ -489,21 +490,53 @@ def calculate_grasp_metrics_for_directory(image_dir, im_width=80,
             # print(qualities)
             all_intersections.append(intersections)
             all_qualities.append(qualities)
-    return all_intersections, all_qualities
+            all_files.append(f)
+    return all_intersections, all_qualities, all_files
+
+
+def compress_images(directory, extension):
+    """
+    We need this to transfer data to server.
+    """
+
+    from os import listdir
+    from os.path import isfile, join
+    from zipfile import ZipFile
+
+    n_per_zip = 50000
+
+    zip_index = 0
+    file_index = 0
+    for f in listdir(directory):
+        image_filename = join(directory, f)
+        if isfile(image_filename) and f.endswith(extension):
+            if file_index == 0:
+                zf = ZipFile('zip' + str(zip_index) + '.zip', 'w')
+            zf.write(image_filename)
+            file_index += 1
+            if file_index == n_per_zip:
+                print('writing file ' + str(zip_index))
+                file_index = 0
+                zf.close()
+                zip_index += 1
+
+    zf.close()
 
 
 if __name__ == '__main__':
     # save_bowl_and_box_depths()
     # plot_bowl_and_box_distance_example()
 
-    obj_dir = '../../grasp-conv/data/obj_files/'
-    # # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
-    process_directory(obj_dir, '../../grasp-conv/data/support_depths/', support=True)
+    # compress_images('../../grasp-conv/data/support_depths/', '.png')
 
-    intersections, qualities = calculate_grasp_metrics_for_directory('../../grasp-conv/data/support_depths/')
+    # obj_dir = '../../grasp-conv/data/obj_files/'
+    # # # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
+    # process_directory(obj_dir, '../../grasp-conv/data/support_depths/', support=True)
+    #
+    intersections, qualities, files = calculate_grasp_metrics_for_directory('../../grasp-conv/data/support_depths/')
 
-    f = file('metrics.pkl', 'wb')
-    cPickle.dump((intersections, qualities), f)
+    f = file('../data/metrics.pkl', 'wb')
+    cPickle.dump((intersections, qualities, files), f)
     f.close()
 
     # f = file('metrics.pkl', 'rb')
