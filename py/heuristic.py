@@ -72,18 +72,6 @@ def finger_depth(camera_angle, camera_offset, finger_length=.12, finger_yz=(.05,
 def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_size=3):
     overlap = np.maximum(0, finger_path - depth_map)
 
-    # X = np.arange(0, len(depth_map))
-    # Y = np.arange(0, len(depth_map))
-    # X, Y = np.meshgrid(X, Y)
-    # fig = plt.figure()
-    # ax = fig.add_subplot(1,1,1,projection='3d')
-    # ax.plot_wireframe(X, Y, overlap)
-    # # ax.plot_wireframe(X, Y, template, color='r')
-    # # ax.set_xlabel('x')
-    # # plt.show()
-    # # plt.imshow(overlap)
-    # plt.show()
-
     # TODO: update this if template orientation wrong
 
     # find first overlap from outside to centre in three regions
@@ -107,11 +95,10 @@ def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_
         #running max to avoid penalizing grasping outside of concave shape ...
         # region_overlap = np.maximum.accumulate(region_overlap, axis=1)
         region_overlap = np.maximum.accumulate(region_overlap, axis=0)
-        # print(region_overlap)
 
         # p = np.sum(region_overlap, axis=0)
         p = np.sum(region_overlap, axis=1)
-        print(p)
+        # print(p)
         if True in (p>0).tolist():
             intersection = (p>0).tolist().index(True)
         else:
@@ -125,17 +112,34 @@ def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_
         if intersection is None:
             quality = 0
         else:
-            sub_region_overlap = region_overlap[:,intersection:intersection+box_size]
-            sub_region_finger = region_finger[:,intersection:intersection+box_size]
+            # sub_region_overlap = region_overlap[:,intersection:intersection+box_size]
+            # sub_region_finger = region_finger[:,intersection:intersection+box_size]
+            sub_region_overlap = region_overlap[intersection:intersection+box_size,:]
+            sub_region_finger = region_finger[intersection:intersection+box_size,:]
             quality = np.sum(sub_region_overlap.flatten()) / np.sum(sub_region_finger.flatten())
 
+        # plt.imshow(sub_region_finger)
+        # plt.show()
+
         qualities.append(quality)
+
+    # print(intersections)
+    # print(qualities)
+    #
+    # from mpl_toolkits.mplot3d import axes3d, Axes3D
+    # X = np.arange(0, len(depth_map))
+    # Y = np.arange(0, len(depth_map))
+    # X, Y = np.meshgrid(X, Y)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1,1,1,projection='3d')
+    # ax.plot_wireframe(X, Y, overlap)
+    # plt.show()
 
     return intersections, qualities
 
 
 if __name__ == '__main__':
-    finger_path_template(45.*np.pi/180., 40, .3)
+    template = finger_path_template(45.*np.pi/180., 80, .3)
 
     # angles = np.arange(0, np.pi/6, np.pi/160)
     # depths = []

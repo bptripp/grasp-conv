@@ -253,9 +253,8 @@ if __name__ == '__main__':
 
     distance = get_distance(depth, .2, 1.0)
 
-    #TODO: no idea if template orientation is correct
     from heuristic import finger_path_template
-    template = finger_path_template(45.*np.pi/180., 40, camera_offset)
+    template = finger_path_template(45.*np.pi/180., im_width, camera_offset)
 
     X = np.arange(0, im_width)
     Y = np.arange(0, im_width)

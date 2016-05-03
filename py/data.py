@@ -6,6 +6,8 @@ import numpy as np
 from itertools import islice
 from depthmap import *
 from PIL import Image
+import scipy
+import scipy.misc
 from depthmap import loadOBJ, Display
 import cPickle
 import matplotlib.pyplot as plt
@@ -105,6 +107,65 @@ def make_depth_from_gripper(obj_filename, param_filename, bottom=0.2):
 
     d.close()
     return np.array(depths), np.array(labels)
+
+
+def load_all_params(param_filename):
+    """
+    Example line from file:
+    "104_toaster_final-18-Dec-2015-13-56-59.obj",2.99894,0.034299705,0.4714164,0.09123467,0.0384472,0.5518384,0.0880979987086634,0.0
+    """
+    objects = []
+    gripper_pos = []
+    gripper_orient = []
+    labels = []
+    for line in open(param_filename, "r"):
+        vals = line.translate(None, '"\n').split(',')
+        if not (vals[0] == 'objfilename'):
+            objects.append(vals[0])
+            gripper_orient.append([float(vals[1]), float(vals[2]), float(vals[3])])
+            gripper_pos.append([float(vals[4]), float(vals[5]), float(vals[6])])
+            labels.append(int(float(vals[8])))
+
+    return objects, gripper_pos, gripper_orient, labels
+
+
+def make_depth_images(obj_name, pos, rot, obj_dir, image_dir, bottom=0.2, imsize=(80,80),
+                      camera_offset=.45, near_clip=.25, far_clip=.8, support=False):
+    """
+    Saves depth images from perspective of gripper as image files. Default
+    camera parameters make an exaggerated representation of region in front of hand.
+
+    :param obj_name: Name corresponding to .obj file (without path or extension)
+    :param pos: Positions of perspectives from which to make depth images
+    :param rot: Rotation matrices of perspectives
+    :param obj_dir: Directory where .obj files can be found
+    :param image_dir: Directory in which to store images
+    """
+    obj_filename = obj_dir + obj_name + '.obj'
+
+    if support:
+        verts, faces = loadOBJ('../data/support-box.obj')
+    else:
+        verts, faces = loadOBJ(obj_filename)
+
+    verts = np.array(verts)
+    minz = np.min(verts, axis=0)[2]
+    verts[:,2] = verts[:,2] + bottom - minz
+
+    d = Display(imsize=imsize)
+    d.set_perspective(fov=45, near_clip=near_clip, far_clip=far_clip)
+
+    for i in range(len(pos)):
+        d.set_camera_position(pos[i], rot[i], camera_offset)
+        d.set_mesh(verts, faces) #this must go after set_camera_position
+        depth = d.read_depth()
+        distance = get_distance(depth, near_clip, far_clip)
+        rescaled_distance = np.maximum(0, (distance-camera_offset)/(far_clip-camera_offset))
+        imfile = image_dir + obj_name + '-' + str(i) + '.png'
+        Image.fromarray((255.0*rescaled_distance).astype('uint8')).save(imfile)
+        # scipy.misc.toimage(depth, cmin=0.0, cmax=1.0).save(imfile)
+
+    d.close()
 
 
 def make_random_depths(obj_filename, param_filename, n, im_size=(40,40)):
@@ -350,7 +411,113 @@ def plot_bowl_and_box_distance_example():
     plt.show()
 
 
+def load_depth_image(directory, object, index):
+    imfile = directory + object + str(index) + '.png'
+    image = scipy.ndimage.imread(imfile, flatten=True)
+
+
+def get_pos_rot(objects, gripper_pos, gripper_orient, obj):
+    """
+    Get positions and rotation matrices for a given object, from a parameter list for
+    all objects.
+    """
+    pos = []
+    rot = []
+
+    for i in range(len(objects)):
+        if objects[i] == obj:
+            pos.append(gripper_pos[i])
+            rot.append(rot_matrix(gripper_orient[i][0], gripper_orient[i][1], gripper_orient[i][2]))
+
+    return np.array(pos), np.array(rot)
+
+
+def process_directory(obj_dir, image_dir, support=False):
+    from os import listdir
+    from os.path import isfile, join
+    import time
+
+    objects, gripper_pos, gripper_orient, labels = load_all_params('../../grasp-conv/data/output_data.csv')
+
+    bottom = 0 if support else 0.2
+
+    for f in listdir(obj_dir):
+        obj_filename = join(obj_dir, f)
+        if isfile(obj_filename) and f.endswith('.obj'):
+            print('Processing ' + f)
+            start_time = time.time()
+            pos, rot = get_pos_rot(objects, gripper_pos, gripper_orient, f)
+            make_depth_images(f[:-4], pos, rot, obj_dir, image_dir, bottom=bottom, support=support)
+            print('   ' + str(time.time()-start_time) + 's')
+
+
+def calculate_grasp_metrics_for_directory(image_dir, im_width=80,
+                                          camera_offset=.45, near_clip=.25, far_clip=.8):
+    from os import listdir
+    from os.path import isfile, join
+    import time
+    from heuristic import finger_path_template
+    from heuristic import calculate_grip_metrics
+
+    template = finger_path_template(45.*np.pi/180., im_width, camera_offset)
+
+    all_intersections = []
+    all_qualities = []
+    for f in listdir(image_dir):
+        image_filename = join(image_dir, f)
+        if isfile(image_filename) and f.endswith('.png'):
+            print('Processing ' + image_filename)
+            image = scipy.misc.imread(image_filename)
+            rescaled_distance = image / 255.0
+            distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+
+            # from mpl_toolkits.mplot3d import axes3d, Axes3D
+            # X = np.arange(0, im_width)
+            # Y = np.arange(0, im_width)
+            # X, Y = np.meshgrid(X, Y)
+            # fig = plt.figure()
+            # distance[distance > camera_offset + .3] = None
+            # template[template < camera_offset] = None
+            # ax = fig.add_subplot(1,1,1,projection='3d')
+            # ax.plot_wireframe(X, Y, distance)
+            # ax.plot_wireframe(X, Y, template, color='r')
+            # ax.set_xlabel('x')
+            # plt.show()
+
+            intersections, qualities = calculate_grip_metrics(distance, template)
+            # print(intersections)
+            # print(qualities)
+            all_intersections.append(intersections)
+            all_qualities.append(qualities)
+    return all_intersections, all_qualities
+
+
 if __name__ == '__main__':
     # save_bowl_and_box_depths()
-    plot_bowl_and_box_distance_example()
+    # plot_bowl_and_box_distance_example()
 
+    obj_dir = '../../grasp-conv/data/obj_files/'
+    # # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
+    process_directory(obj_dir, '../../grasp-conv/data/support_depths/', support=True)
+
+    intersections, qualities = calculate_grasp_metrics_for_directory('../../grasp-conv/data/support_depths/')
+
+    f = file('metrics.pkl', 'wb')
+    cPickle.dump((intersections, qualities), f)
+    f.close()
+
+    # f = file('metrics.pkl', 'rb')
+    # intersections, qualities = cPickle.load(f)
+    # f.close()
+    # print(intersections)
+    # print(qualities)
+
+    # from mpl_toolkits.mplot3d import axes3d, Axes3D
+    # X = np.arange(0, 80)
+    # Y = np.arange(0, 80)
+    # X, Y = np.meshgrid(X, Y)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1,1,1,projection='3d')
+    # ax.plot_wireframe(X, Y, foo)
+    # ax.set_xlabel('x')
+    # plt.show()
