@@ -1,6 +1,7 @@
 __author__ = 'bptripp'
 
 import numpy as np
+from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -12,8 +13,6 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D
 Initialization of CNNs via clustering of inputs and convex optimization
 of outputs.
 """
-
-from scipy.optimize import curve_fit
 
 
 def sigmoid(x, centre, gain):
@@ -49,7 +48,6 @@ def get_sigmoid_params(false_samples, true_samples, do_plot=False):
     centre, gain = popt[0], popt[1]
 
     if do_plot:
-        # plt.figure()
         plt.hist(false_samples, a)
         plt.hist(true_samples, a)
         plt.plot(a, 100*sigmoid(a, centre, gain))
@@ -82,7 +80,13 @@ def get_convolutional_prototypes(samples, shape, patches_per_sample=5):
     flat = np.reshape(patches, (patches.shape[0], -1))
     km = KMeans(shape[0])
     km.fit(flat)
-    return np.reshape(km.cluster_centers_, shape)
+    kernels = km.cluster_centers_
+
+    # normalize product of centre and corresponding kernel
+    for i in range(kernels.shape[0]):
+        kernels[i,:] = kernels[i,:] / np.linalg.norm(kernels[i,:])
+
+    return np.reshape(kernels, shape)
 
 
 def get_dense_prototypes(samples, n):
@@ -132,25 +136,42 @@ def check_discriminant():
 
 
 def init_model(model, X_train, Y_train):
-    for i in range(len(model.layers)):
-        print(model.layers[i])
-        if i == len(model.layers) - 1:
-            pass
-        elif isinstance(model.layers[i], Convolution2D):
+    if not (isinstance(model.layers[-1], Activation) \
+            and model.layers[-1].activation.__name__ == 'sigmoid'\
+            and isinstance(model.layers[-2], Dense)):
+        raise Exception('This does not look like an LDA-compatible network, which is all we support')
+
+    for i in range(len(model.layers)-2):
+        if isinstance(model.layers[i], Convolution2D):
             inputs = get_inputs(model, X_train, i)
             w, b = model.layers[i].get_weights()
             w = get_convolutional_prototypes(inputs, w.shape)
             b = .1 * np.ones_like(b)
             model.layers[i].set_weights([w,b])
-        elif isinstance(model.layers[i], Dense):
+        if isinstance(model.layers[i], Dense):
             inputs = get_inputs(model, X_train, i)
             w, b = model.layers[i].get_weights()
-            print(w.shape)
-            print(inputs.shape)
-            w = get_dense_prototypes(inputs, w.shape[1])
+            w = get_dense_prototypes(inputs, w.shape[1]).T
             b = .1 * np.ones_like(b)
             model.layers[i].set_weights([w,b])
 
+    inputs = get_inputs(model, X_train, len(model.layers)-3)
+    coeff = get_discriminant(inputs, Y_train)
+    centre, gain = get_sigmoid_params(np.dot(inputs[Y_train<.5], coeff),
+                       np.dot(inputs[Y_train>.5], coeff))
+    w = coeff*gain
+    w = w[:,np.newaxis]
+    b = np.array([-centre])
+    model.layers[-2].set_weights([w,b])
+    sigmoid_inputs = get_inputs(model, X_train, len(model.layers)-1)
+
+    plt.figure()
+    plt.subplot(2,1,1)
+    bins = np.arange(np.min(Y_train), np.max(Y_train))
+    plt.hist(sigmoid_inputs[Y_train<.5])
+    plt.subplot(2,1,2)
+    plt.hist(sigmoid_inputs[Y_train>.5])
+    plt.show()
 
 
 def get_inputs(model, X_train, layer):
@@ -162,54 +183,33 @@ def get_inputs(model, X_train, layer):
         return partial_model.predict(X_train)
 
 
-# def init_features(model, layer, inputs):
-#     w, b = model.layers[layer].get_weights()
-#     print(w.shape)
-#     prototypes = get_prototypes(inputs, w.shape[0])
-#     print(prototypes.shape)
-#     # scale = 1./np.sum(prototypes)
-
-
-def init_log_loss(model, X_train, Y_train):
-    pass
-
-
 if __name__ == '__main__':
     # check_sigmoid()
-    check_get_prototypes()
+    # check_get_prototypes()
     # check_discriminant()
-
-    assert False
-
-    import cPickle
-    f = file('../data/depths/24_bowl-29-Feb-2016-15-01-53.pkl', 'rb')
-    d, bd, l = cPickle.load(f)
-    f.close()
-    print(d.shape)
-    print(bd.shape)
-    print(l.shape)
-
-    n = 100
-    f = file('../data/bowl-test.pkl', 'wb')
-    cPickle.dump((d[:n,:,:], bd[:n,:,:], l[:n]), f)
-    f.close()
 
     import cPickle
     f = file('../data/bowl-test.pkl', 'rb')
+    # f = file('../data/depths/24_bowl-29-Feb-2016-15-01-53.pkl', 'rb')
     d, bd, l = cPickle.load(f)
     f.close()
 
-    X_train = np.zeros((90,1,80,80))
-    X_train[:,0,:,:] = d[:90,:,:]
-    Y_train = l[:90]
+    d = d - np.mean(d.flatten())
+    d = d / np.std(d.flatten())
+
+    # n = 900
+    n = 90
+    X_train = np.zeros((n,1,80,80))
+    X_train[:,0,:,:] = d[:n,:,:]
+    Y_train = l[:n]
 
     model = Sequential()
-    model.add(Convolution2D(16,5,5,input_shape=(1,80,80)))
+    model.add(Convolution2D(64,9,9,input_shape=(1,80,80)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D())
-    model.add(Convolution2D(8,3,3))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D())
+    # model.add(Convolution2D(64,3,3))
+    # model.add(Activation('relu'))
+    # model.add(MaxPooling2D())
     model.add(Flatten())
     model.add(Dense(64))
     model.add(Activation('relu'))
@@ -218,4 +218,5 @@ if __name__ == '__main__':
 
     init_model(model, X_train, Y_train)
 
-    #TODO: scale appropriately to output is standard normal
+    # from visualize import plot_kernels
+    # plot_kernels(model.layers[0].get_weights()[0])
