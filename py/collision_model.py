@@ -26,9 +26,10 @@ model.add(Dense(1))
 model.add(Activation('sigmoid'))
 
 adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
-model.compile(loss='mean_squared_error', optimizer=adam)
+# model.compile(loss='mean_squared_error', optimizer=adam)
+model.compile(loss='binary_crossentropy', optimizer=adam)
 
-f = file('../data/metrics.pkl', 'rb')
+f = file('../data/metrics-support.pkl', 'rb')
 intersections, qualities, files = cPickle.load(f)
 f.close()
 
@@ -47,7 +48,7 @@ print(collisions.shape)
 from os.path import join
 import scipy
 def get_input(image_file):
-    image_dir=image_dir = '../../grasp-conv/data/support_depths/'
+    image_dir = '../../grasp-conv/data/support_depths/'
     image = scipy.misc.imread(join(image_dir, image_file))
     rescaled_distance = image / 255.0
     return 1.0 - rescaled_distance # I think this is a good closeup disparity-like representation
