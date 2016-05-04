@@ -505,13 +505,19 @@ def compress_images(directory, extension):
 
     n_per_zip = 50000
 
+    # with ZipFile('zip-all.zip', 'w') as zf:
+    #     for f in listdir(directory):
+    #         image_filename = join(directory, f)
+    #         if isfile(image_filename) and f.endswith(extension):
+    #             zf.write(image_filename)
+
     zip_index = 0
     file_index = 0
     for f in listdir(directory):
         image_filename = join(directory, f)
         if isfile(image_filename) and f.endswith(extension):
             if file_index == 0:
-                zf = ZipFile('zip' + str(zip_index) + '.zip', 'w')
+                zf = ZipFile('obj' + str(zip_index) + '.zip', 'w')
             zf.write(image_filename)
             file_index += 1
             if file_index == n_per_zip:
@@ -528,16 +534,17 @@ if __name__ == '__main__':
     # plot_bowl_and_box_distance_example()
 
     # compress_images('../../grasp-conv/data/support_depths/', '.png')
+    compress_images('../../grasp-conv/data/obj_depths/', '.png')
 
     # obj_dir = '../../grasp-conv/data/obj_files/'
-    # # # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
-    # process_directory(obj_dir, '../../grasp-conv/data/support_depths/', support=True)
+    # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
+    # # process_directory(obj_dir, '../../grasp-conv/data/support_depths/', support=True)
     #
-    intersections, qualities, files = calculate_grasp_metrics_for_directory('../../grasp-conv/data/support_depths/')
-
-    f = file('../data/metrics.pkl', 'wb')
-    cPickle.dump((intersections, qualities, files), f)
-    f.close()
+    # # intersections, qualities, files = calculate_grasp_metrics_for_directory('../../grasp-conv/data/support_depths/')
+    # intersections, qualities, files = calculate_grasp_metrics_for_directory('../../grasp-conv/data/obj_depths/')
+    # f = file('../data/metrics-objects.pkl', 'wb')
+    # cPickle.dump((intersections, qualities, files), f)
+    # f.close()
 
     # f = file('metrics.pkl', 'rb')
     # intersections, qualities = cPickle.load(f)
