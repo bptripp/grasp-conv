@@ -15,13 +15,15 @@ model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Convolution2D(32, 3, 3, init='glorot_normal', border_mode='same'))
 model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
+#model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Convolution2D(32, 3, 3, init='glorot_normal', border_mode='same'))
 model.add(Activation('relu'))
 model.add(Flatten())
 model.add(Dense(256))
 model.add(Activation('relu'))
 model.add(Dropout(.5))
+#model.add(Dense(64))
+#model.add(Activation('relu'))
 model.add(Dense(4))
 # model.add(Activation('sigmoid'))
 
@@ -83,7 +85,7 @@ scores = np.concatenate(
 from os.path import join
 import scipy
 def get_input(image_file):
-    image_dir = '../../grasp-conv/data/support_depths/'
+    image_dir = '../../grasp-conv/data/obj_depths/'
     image = scipy.misc.imread(join(image_dir, image_file))
     rescaled_distance = image / 255.0
     return 1.0 - rescaled_distance
@@ -108,8 +110,13 @@ h = model.fit_generator(generate_XY(),
     samples_per_epoch=500, nb_epoch=500,
     validation_data=(X_valid, Y_valid))
 
-print(h)
-# f = file('collision-history.pkl', 'wb')
-# cPickle.dump(h, f)
-# f.close()
+print(h.history)
+f = file('h-history.pkl', 'wb')
+cPickle.dump(h.history, f)
+f.close()
+
+json_string = model.to_json()
+open('h-model-architecture.json', 'w').write(json_string)
+model.save_weights('h-model-weights.h5', overwrite=True)
+
 
