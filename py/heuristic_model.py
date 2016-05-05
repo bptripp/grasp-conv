@@ -83,7 +83,7 @@ scores = np.concatenate(
 from os.path import join
 import scipy
 def get_input(image_file):
-    image_dir = '../../grasp-conv/data/support_depths/'
+    image_dir = '../../grasp-conv/data/obj_depths/'
     image = scipy.misc.imread(join(image_dir, image_file))
     rescaled_distance = image / 255.0
     return 1.0 - rescaled_distance
