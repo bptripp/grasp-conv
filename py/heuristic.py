@@ -2,6 +2,7 @@ __author__ = 'bptripp'
 
 import numpy as np
 from scipy.optimize import newton
+from scipy.signal import convolve2d
 import matplotlib.pyplot as plt
 
 # Barrett hand dimensions from http://www.barrett.com/images/HandDime4.gif
@@ -69,19 +70,39 @@ def finger_depth(camera_angle, camera_offset, finger_length=.12, finger_yz=(.05,
     return result
 
 
+def calculate_metric_map(depth_map, finger_path, direction, saturation_distance=.02, box_size=3):
+    """
+    An intermediate step in calculation of grip metrics. It isn't necessary to calculate
+    this result separately except that decomposing calculation of metrics in this way
+    may simplify deep network training.
+    The same metrics could be calculated from various related maps. This one is chosen because
+    it has fairly local features that should be easy for a network to approximate.
+    """
+
+    finger_width = np.round(np.mean(np.sum(finger_path > 0, axis=0)))
+
+    overlap = np.maximum(0, finger_path - depth_map)
+    overlap = np.minimum(saturation_distance, overlap)
+    overlap = overlap[::direction,:]
+
+    running_max = np.zeros_like(overlap)
+    for i in range(overlap.shape[0]):
+        start = np.maximum(0,i)
+        finish = np.minimum(overlap.shape[0],i+1)
+        running_max[i,:] = np.max(overlap[start:finish,:], axis=0)
+
+    window = np.ones((box_size,finger_width))
+    window = window / np.sum(window*saturation_distance) # normalize so that max convolution result is 1
+    result = convolve2d(running_max, window, mode='same')
+
+    return result[::direction,:]
+
+
 def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_size=3):
     overlap = np.maximum(0, finger_path - depth_map)
 
-    # TODO: update this if template orientation wrong
-
     # find first overlap from outside to centre in three regions
     s = depth_map.shape
-    # regions = [[0,s[0]/2,0,s[1]/2],
-    #         [s[0]/2,s[0],0,s[1]/2],
-    #         [s[0]/4,3*s[0]/4,s[1],s[1]/2]]
-    # regions = [[0,s[0]/2,s[1],s[1]/2],
-    #         [s[0]/2,s[0],s[1],s[1]/2],
-    #         [s[0]/4,3*s[0]/4,0,s[1]/2]]
     regions = [[s[0],s[0]/2,0,s[1]/2],
                [s[0],s[0]/2,s[1]/2,s[1]],
                [0,s[0]/2,s[1]/4,3*s[1]/4]]
@@ -138,8 +159,56 @@ def calculate_grip_metrics(depth_map, finger_path, saturation_distance=.02, box_
     return intersections, qualities
 
 
+def check_overlap_range(image_dir='../../grasp-conv/data/obj_depths', im_width=80, camera_offset=.45, far_clip=.8):
+    from data import load_all_params
+    import scipy
+    objects, gripper_pos, gripper_orient, labels = load_all_params('../../grasp-conv/data/output_data.csv')
+    seq_nums = np.arange(len(objects)) % 1000
+
+    from os import listdir
+    from os.path import isfile, join
+    from heuristic import finger_path_template
+
+    finger_path = finger_path_template(45.*np.pi/180., im_width, camera_offset)
+
+    max_overlaps = []
+    for object, seq_num in zip(objects, seq_nums):
+        filename = join(image_dir, object[:-4] + '-' + str(seq_num) + '.png')
+        image = scipy.misc.imread(filename)
+        rescaled_distance = image / 255.0
+        distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+        max_overlaps.append(np.max(finger_path - distance))
+
+    return max_overlaps, labels
+
+
 if __name__ == '__main__':
-    template = finger_path_template(45.*np.pi/180., 80, .3)
+    camera_offset=.45
+    near_clip=.25
+    far_clip=.8
+
+    import scipy
+    image = scipy.misc.imread('../../grasp-conv/data/obj_depths/1_Coffeecup_final-03-Mar-2016-18-50-40-1.png')
+    rescaled_distance = image / 255.0
+    distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+
+    finger_path = finger_path_template(45.*np.pi/180., 80, camera_offset)
+    import time
+    start_time = time.time()
+    for i in range(1000):
+        mm = calculate_metric_map(distance, finger_path, 1)
+    print('elapsed: ' + str(time.time() - start_time))
+
+    print(np.min(mm))
+    print(np.max(mm))
+
+
+    intersections, qualities = calculate_grip_metrics(distance, finger_path)
+
+    print(intersections)
+
+    plt.imshow(mm)
+    plt.show()
 
     # angles = np.arange(0, np.pi/6, np.pi/160)
     # depths = []

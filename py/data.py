@@ -9,6 +9,7 @@ from PIL import Image
 import scipy
 import scipy.misc
 from depthmap import loadOBJ, Display
+from heuristic import calculate_metric_map
 import cPickle
 import matplotlib.pyplot as plt
 
@@ -72,41 +73,45 @@ import matplotlib.pyplot as plt
 #         self.X = (self.X - np.mean(self.X.flatten())) / np.std(self.X.flatten())
 
 
-def make_depth_from_gripper(obj_filename, param_filename, bottom=0.2):
-    """
-    Make depth images from perspective of gripper.
-    """
-    verts, faces = loadOBJ(obj_filename)
-    verts = np.array(verts)
-    minz = np.min(verts, axis=0)[2]
-    verts[:,2] = verts[:,2] + bottom - minz
-
-    d = Display(imsize=(80,80))
-
-    # positions = []
-    # orientations = []
-    labels = []
-    depths = []
-    c = 0
-    for line in open(param_filename, "r"):
-        # print(c)
-        # if c == 100:
-        #     break
-        c = c + 1
-
-        vals = line.split(',')
-        gripper_pos = [float(vals[0]), float(vals[1]), float(vals[2])]
-        gripper_orient = [float(vals[3]), float(vals[4]), float(vals[5])]
-        rot = rot_matrix(gripper_orient[0], gripper_orient[1], gripper_orient[2])
-        labels.append(int(vals[6]))
-
-        d.set_camera_position(gripper_pos, rot, .4)
-        d.set_mesh(verts, faces) #this mut go after set_camera_position
-        depth = d.read_depth()
-        depths.append(depth)
-
-    d.close()
-    return np.array(depths), np.array(labels)
+# def make_depth_from_gripper(obj_filename, param_filename, bottom=0.2):
+#     """
+#     Make depth images from perspective of gripper.
+#     """
+#     verts, faces = loadOBJ(obj_filename)
+#     verts = np.array(verts)
+#     min_bounding_box = np.min(verts, axis=0)
+#     max_bounding_box = np.max(verts, axis=0)
+#
+#     # set bounding box horizontal centre to 0,0
+#     verts[:,0] = verts[:,0] - (min_bounding_box[0]+max_bounding_box[0])/2.
+#     verts[:,1] = verts[:,1] - (min_bounding_box[1]+max_bounding_box[1])/2.
+#     # set bottom of bounding box to "bottom"
+#     verts[:,2] = verts[:,2] + bottom - min_bounding_box[2]
+#
+#     d = Display(imsize=(80,80))
+#
+#     labels = []
+#     depths = []
+#     c = 0
+#     for line in open(param_filename, "r"):
+#         # print(c)
+#         # if c == 100:
+#         #     break
+#         c = c + 1
+#
+#         vals = line.split(',')
+#         gripper_pos = [float(vals[0]), float(vals[1]), float(vals[2])]
+#         gripper_orient = [float(vals[3]), float(vals[4]), float(vals[5])]
+#         rot = rot_matrix(gripper_orient[0], gripper_orient[1], gripper_orient[2])
+#         labels.append(int(vals[6]))
+#
+#         d.set_camera_position(gripper_pos, rot, .4)
+#         d.set_mesh(verts, faces) #this mut go after set_camera_position
+#         depth = d.read_depth()
+#         depths.append(depth)
+#
+#     d.close()
+#     return np.array(depths), np.array(labels)
 
 
 def load_all_params(param_filename):
@@ -114,17 +119,76 @@ def load_all_params(param_filename):
     Example line from file:
     "104_toaster_final-18-Dec-2015-13-56-59.obj",2.99894,0.034299705,0.4714164,0.09123467,0.0384472,0.5518384,0.0880979987086634,0.0
     """
+
+    bad = [
+        # Ashley says these are bad after looking through V-REP images ...
+        '24_bowl-24-Feb-2016-17-38-53',
+        '24_bowl-26-Feb-2016-08-35-29',
+        '24_bowl-27-Feb-2016-23-52-43',
+        '24_bowl-29-Feb-2016-15-01-53',
+        '25_mug-11-Feb-2016-02-25-25',
+        '28_Spatula_final-10-Mar-2016-18-31-08',
+        '42_wineglass_final-01-Nov-2015-19-25-18',
+        # These somehow have two objects in V-REP images ...
+        '24_bowl-02-Mar-2016-07-03-29',
+        '24_bowl-03-Mar-2016-22-54-50',
+        '24_bowl-05-Mar-2016-13-53-41',
+        '24_bowl-07-Mar-2016-05-06-04',
+        # These ones may fall over a bit at simulation start (first has off depth maps, others don't) ...
+        '55_hairdryer_final-18-Nov-2015-13-57-47',
+        '55_hairdryer_final-15-Dec-2015-12-18-19',
+        '55_hairdryer_final-09-Dec-2015-09-54-47',
+        '55_hairdryer_final-19-Nov-2015-09-56-56',
+        '55_hairdryer_final-21-Nov-2015-05-16-08',
+        # These frequently do not have object at centre of depth map (various reasons possible) ...
+        '33_pan_final-11-Mar-2016-17-41-49',
+        '53_watertap_final-04-Dec-2015-01-28-24',
+        '53_watertap_final-06-Dec-2015-04-20-45',
+        '53_watertap_final-15-Nov-2015-05-08-46',
+        '53_watertap_final-17-Nov-2015-00-26-39',
+        '53_watertap_final-17-Nov-2015-15-57-57',
+        '53_watertap_final-19-Jan-2016-04-32-52',
+        '56_headphones_final-11-Nov-2015-14-14-02',
+        '64_tongs_final-02-Dec-2015-12-22-36',
+        '68_toy_final-05-Dec-2015-03-00-07',
+        '68_toy_final-13-Nov-2015-10-50-34',
+        '68_toy_final-18-Dec-2015-12-36-41',
+        '68_toy_final-22-Nov-2015-08-51-12',
+        '76_mirror_final-06-Dec-2015-03-46-18',
+        '77_napkinholder_final-28-Nov-2015-13-06-17',
+        '79_toy_dog_final-03-Dec-2015-08-15-04',
+        '79_toy_dog_final-20-Jan-2016-06-55-00',
+        '92_shell_final-26-Feb-2016-17-48-04',
+        '94_weight_final-27-Feb-2016-15-40-40',
+        '94_weight_final-29-Feb-2016-17-59-42',
+        '95_boots_final-01-Mar-2016-16-02-15',
+        '95_boots_final-01-Mar-2016-16-07-50',
+        '95_boots_final-02-Mar-2016-13-46-24',
+        '95_boots_final-02-Mar-2016-13-56-54',
+        '95_boots_final-15-Nov-2015-06-30-07',
+        '95_boots_final-20-Nov-2015-09-23-39',
+        '95_boots_final-21-Nov-2015-04-00-35',
+        '95_boots_final-23-Dec-2015-15-28-51',
+        '95_boots_final-28-Feb-2016-18-58-13',
+        '95_boots_final-28-Feb-2016-18-58-15',
+        '98_faucet_final-28-Feb-2016-18-32-04',
+        '98_faucet_final-28-Feb-2016-18-58-23',
+        '98_faucet_final-28-Feb-2016-18-58-25'
+    ]
+
     objects = []
     gripper_pos = []
     gripper_orient = []
     labels = []
     for line in open(param_filename, "r"):
         vals = line.translate(None, '"\n').split(',')
-        if not (vals[0] == 'objfilename'):
+        if not (vals[0] == 'objfilename') and not vals[0][:-4] in bad:
             objects.append(vals[0])
             gripper_orient.append([float(vals[1]), float(vals[2]), float(vals[3])])
             gripper_pos.append([float(vals[4]), float(vals[5]), float(vals[6])])
             labels.append(int(float(vals[8])))
+        # else:
+        #     print('skipping ' + vals[0])
 
     return objects, gripper_pos, gripper_orient, labels
 
@@ -149,8 +213,16 @@ def make_depth_images(obj_name, pos, rot, obj_dir, image_dir, bottom=0.2, imsize
         verts, faces = loadOBJ(obj_filename)
 
     verts = np.array(verts)
-    minz = np.min(verts, axis=0)[2]
-    verts[:,2] = verts[:,2] + bottom - minz
+    # minz = np.min(verts, axis=0)[2]
+    # verts[:,2] = verts[:,2] + bottom - minz
+    min_bounding_box = np.min(verts, axis=0)
+    max_bounding_box = np.max(verts, axis=0)
+
+    # set bounding box horizontal centre to 0,0
+    verts[:,0] = verts[:,0] - (min_bounding_box[0]+max_bounding_box[0])/2.
+    verts[:,1] = verts[:,1] - (min_bounding_box[1]+max_bounding_box[1])/2.
+    # set bottom of bounding box to "bottom"
+    verts[:,2] = verts[:,2] + bottom - min_bounding_box[2]
 
     d = Display(imsize=imsize)
     d.set_perspective(fov=45, near_clip=near_clip, far_clip=far_clip)
@@ -252,81 +324,81 @@ def get_prob_label(points, labels, point, sigma_p=.001, sigma_a=(4*np.pi/180)):
     return estimate, confidence
 
 
-def make_random_bowl_depths():
-    shapes = ['24_bowl-02-Mar-2016-07-03-29',
-        '24_bowl-03-Mar-2016-22-54-50',
-        '24_bowl-05-Mar-2016-13-53-41',
-        '24_bowl-07-Mar-2016-05-06-04',
-        '24_bowl-16-Feb-2016-10-12-27',
-        '24_bowl-17-Feb-2016-22-00-34',
-        '24_bowl-24-Feb-2016-17-38-53',
-        '24_bowl-26-Feb-2016-08-35-29',
-        '24_bowl-27-Feb-2016-23-52-43',
-        '24_bowl-29-Feb-2016-15-01-53']
+# def make_random_bowl_depths():
+#     shapes = ['24_bowl-02-Mar-2016-07-03-29',
+#         '24_bowl-03-Mar-2016-22-54-50',
+#         '24_bowl-05-Mar-2016-13-53-41',
+#         '24_bowl-07-Mar-2016-05-06-04',
+#         '24_bowl-16-Feb-2016-10-12-27',
+#         '24_bowl-17-Feb-2016-22-00-34',
+#         '24_bowl-24-Feb-2016-17-38-53',
+#         '24_bowl-26-Feb-2016-08-35-29',
+#         '24_bowl-27-Feb-2016-23-52-43',
+#         '24_bowl-29-Feb-2016-15-01-53']
+#
+#     # shapes = ['24_bowl-02-Mar-2016-07-03-29']
+#
+#     n = 10000
+#     for shape in shapes:
+#         depths, labels = make_random_depths('../data/obj_files/' + shape + '.obj',
+#                                             '../data/params/' + shape + '.csv',
+#                                             n, im_size=(40,40))
+#
+#         f = file('../data/' + shape + '-random.pkl', 'wb')
+#         cPickle.dump((depths, labels), f)
+#         f.close()
 
-    # shapes = ['24_bowl-02-Mar-2016-07-03-29']
 
-    n = 10000
-    for shape in shapes:
-        depths, labels = make_random_depths('../data/obj_files/' + shape + '.obj',
-                                            '../data/params/' + shape + '.csv',
-                                            n, im_size=(40,40))
-
-        f = file('../data/' + shape + '-random.pkl', 'wb')
-        cPickle.dump((depths, labels), f)
-        f.close()
-
-
-def check_random_bowl_depths():
-
-    # shapes = ['24_bowl-02-Mar-2016-07-03-29',
-    #     '24_bowl-03-Mar-2016-22-54-50',
-    #     '24_bowl-05-Mar-2016-13-53-41',
-    #     '24_bowl-07-Mar-2016-05-06-04',
-    #     '24_bowl-16-Feb-2016-10-12-27',
-    #     '24_bowl-17-Feb-2016-22-00-34',
-    #     '24_bowl-24-Feb-2016-17-38-53',
-    #     '24_bowl-26-Feb-2016-08-35-29',
-    #     '24_bowl-27-Feb-2016-23-52-43',
-    #     '24_bowl-29-Feb-2016-15-01-53']
-
-    shapes = ['24_bowl-02-Mar-2016-07-03-29']
-
-    f = file('../data/' + shapes[0] + '-random.pkl', 'rb')
-    (depths, labels) = cPickle.load(f)
-    f.close()
-
-    print(labels)
-
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import axes3d, Axes3D
-
-    depths = depths.astype(float)
-    depths[depths > np.max(depths.flatten()) - 1] = np.NaN
-
-    X = np.arange(0, depths.shape[1])
-    Y = np.arange(0, depths.shape[2])
-    X, Y = np.meshgrid(X, Y)
-    fig = plt.figure(figsize=(12,6))
-    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    plt.xlabel('x')
-    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-    plt.xlabel('x')
-    # ax = Axes3D(fig)
-    # for i in range(depths.shape[0]):
-    s = 5 #pixel stride
-    for i in range(n):
-        if labels[i] > .5:
-            color = 'g'
-            ax = ax1
-            ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
-        else:
-            color = 'r'
-            ax = ax2
-            if np.random.rand(1) < .5:
-                ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
-        # plt.title(str(i) + ': ' + str(labels[i]))
-    plt.show()
+# def check_random_bowl_depths():
+#
+#     # shapes = ['24_bowl-02-Mar-2016-07-03-29',
+#     #     '24_bowl-03-Mar-2016-22-54-50',
+#     #     '24_bowl-05-Mar-2016-13-53-41',
+#     #     '24_bowl-07-Mar-2016-05-06-04',
+#     #     '24_bowl-16-Feb-2016-10-12-27',
+#     #     '24_bowl-17-Feb-2016-22-00-34',
+#     #     '24_bowl-24-Feb-2016-17-38-53',
+#     #     '24_bowl-26-Feb-2016-08-35-29',
+#     #     '24_bowl-27-Feb-2016-23-52-43',
+#     #     '24_bowl-29-Feb-2016-15-01-53']
+#
+#     shapes = ['24_bowl-02-Mar-2016-07-03-29']
+#
+#     f = file('../data/' + shapes[0] + '-random.pkl', 'rb')
+#     (depths, labels) = cPickle.load(f)
+#     f.close()
+#
+#     print(labels)
+#
+#     import matplotlib.pyplot as plt
+#     from mpl_toolkits.mplot3d import axes3d, Axes3D
+#
+#     depths = depths.astype(float)
+#     depths[depths > np.max(depths.flatten()) - 1] = np.NaN
+#
+#     X = np.arange(0, depths.shape[1])
+#     Y = np.arange(0, depths.shape[2])
+#     X, Y = np.meshgrid(X, Y)
+#     fig = plt.figure(figsize=(12,6))
+#     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+#     plt.xlabel('x')
+#     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+#     plt.xlabel('x')
+#     # ax = Axes3D(fig)
+#     # for i in range(depths.shape[0]):
+#     s = 5 #pixel stride
+#     for i in range(n):
+#         if labels[i] > .5:
+#             color = 'g'
+#             ax = ax1
+#             ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
+#         else:
+#             color = 'r'
+#             ax = ax2
+#             if np.random.rand(1) < .5:
+#                 ax.plot_wireframe(X[::s,::s], Y[::s,::s], depths[i,::s,::s], color=color)
+#         # plt.title(str(i) + ': ' + str(labels[i]))
+#     plt.show()
 
 
 def plot_box_corners():
@@ -342,29 +414,29 @@ def plot_box_corners():
     plt.show()
 
 
-def save_bowl_and_box_depths():
-    shapes = [
-        '24_bowl-16-Feb-2016-10-12-27',
-        '24_bowl-17-Feb-2016-22-00-34',
-        '24_bowl-24-Feb-2016-17-38-53',
-        '24_bowl-26-Feb-2016-08-35-29',
-        '24_bowl-27-Feb-2016-23-52-43',
-        '24_bowl-29-Feb-2016-15-01-53']
-
-    import time
-    for shape in shapes:
-        print('Processing ' + shape)
-        start_time = time.time()
-        depths, labels = make_depth_from_gripper('../data/obj_files/' + shape + '.obj',
-                                                '../data/params/' + shape + '.csv',
-                                                bottom=0.2)
-        box_depths, _ = make_depth_from_gripper('../data/support-box.obj',
-                                                '../data/params/' + shape + '.csv',
-                                                bottom=0)
-        f = file('../data/depths/' + shape + '.pkl', 'wb')
-        cPickle.dump((depths, box_depths, labels), f)
-        f.close()
-        print('    ' + str(time.time() - start_time) + 's')
+# def save_bowl_and_box_depths():
+#     shapes = [
+#         '24_bowl-16-Feb-2016-10-12-27',
+#         '24_bowl-17-Feb-2016-22-00-34',
+#         '24_bowl-24-Feb-2016-17-38-53',
+#         '24_bowl-26-Feb-2016-08-35-29',
+#         '24_bowl-27-Feb-2016-23-52-43',
+#         '24_bowl-29-Feb-2016-15-01-53']
+#
+#     import time
+#     for shape in shapes:
+#         print('Processing ' + shape)
+#         start_time = time.time()
+#         depths, labels = make_depth_from_gripper('../data/obj_files/' + shape + '.obj',
+#                                                 '../data/params/' + shape + '.csv',
+#                                                 bottom=0.2)
+#         box_depths, _ = make_depth_from_gripper('../data/support-box.obj',
+#                                                 '../data/params/' + shape + '.csv',
+#                                                 bottom=0)
+#         f = file('../data/depths/' + shape + '.pkl', 'wb')
+#         cPickle.dump((depths, box_depths, labels), f)
+#         f.close()
+#         print('    ' + str(time.time() - start_time) + 's')
 
 
 def check_bowl_and_box_variance():
@@ -494,6 +566,27 @@ def calculate_grasp_metrics_for_directory(image_dir, im_width=80,
     return all_intersections, all_qualities, all_files
 
 
+def calculate_grasp_metric_maps_for_directory(image_dir, dest_dir, im_width=80,
+                                          camera_offset=.45, near_clip=.25, far_clip=.8):
+    from os import listdir
+    from os.path import isfile, join
+    from heuristic import finger_path_template
+
+    finger_path = finger_path_template(45.*np.pi/180., im_width, camera_offset)
+
+    for f in listdir(image_dir):
+        image_filename = join(image_dir, f)
+        if isfile(image_filename) and f.endswith('.png'):
+            print('Processing ' + image_filename)
+            image = scipy.misc.imread(image_filename)
+            rescaled_distance = image / 255.0
+            distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+
+            mm = calculate_metric_map(distance, finger_path, 1)
+            imfile = dest_dir + f[:-4] + '-map' + '.png'
+            Image.fromarray((255.0*mm).astype('uint8')).save(imfile)
+
+
 def compress_images(directory, extension):
     """
     We need this to transfer data to server.
@@ -535,6 +628,15 @@ if __name__ == '__main__':
 
     # compress_images('../../grasp-conv/data/support_depths/', '.png')
     compress_images('../../grasp-conv/data/obj_depths/', '.png')
+    # compress_images('../../grasp-conv/data/obj_mm/', '.png')
+
+    # calculate_grasp_metric_maps_for_directory('../../grasp-conv/data/obj_depths/', '../../grasp-conv/data/obj_mm/')
+    # image = scipy.misc.imread('../../grasp-conv/data/obj_mm/104_toaster_final-18-Dec-2015-13-56-59-0-map.png')
+    # mm = image / 255.0
+    # print(np.min(mm))
+    # print(np.max(mm))
+
+    # objects, gripper_pos, gripper_orient, labels = load_all_params('../../grasp-conv/data/output_data.csv')
 
     # obj_dir = '../../grasp-conv/data/obj_files/'
     # process_directory(obj_dir, '../../grasp-conv/data/obj_depths/')
