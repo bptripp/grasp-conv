@@ -21,8 +21,9 @@ model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Convolution2D(32, 3, 3, init='glorot_normal', border_mode='same'))
 model.add(Activation('relu'))
+model.add(Dropout(.5))
 model.add(Flatten())
-model.add(Dense(256))
+model.add(Dense(512))
 model.add(Activation('relu'))
 model.add(Dropout(.5))
 model.add(Dense(1))
@@ -76,5 +77,14 @@ def generate_XY():
         yield (X, Y)
 
 h = model.fit_generator(generate_XY(),
-    samples_per_epoch=500, nb_epoch=500,
+    samples_per_epoch=500, nb_epoch=1500,
     validation_data=(X_valid, Y_valid))
+
+f = file('v-history.pkl', 'wb')
+cPickle.dump(h.history, f)
+f.close()
+
+json_string = model.to_json()
+open('v-model-architecture.json', 'w').write(json_string)
+model.save_weights('v-model-weights.h5', overwrite=True)
+
