@@ -15,3 +15,17 @@ def plot_kernels(weights):
         plt.axis('off')
     plt.tight_layout()
     plt.show()
+
+
+def plot_mesh(matrix):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import axes3d, Axes3D
+
+    im_width = matrix.shape[0]
+    fig = plt.figure()
+    X = np.arange(0, im_width)
+    Y = np.arange(0, im_width)
+    X, Y = np.meshgrid(X, Y)
+    ax = fig.add_subplot(1,1,1,projection='3d')
+    ax.plot_wireframe(X, Y, matrix)
+    plt.show()

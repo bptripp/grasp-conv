@@ -10,44 +10,49 @@ import matplotlib.pyplot as plt
 # I have estimated the hand origin in MeshLab from a mesh exported from V-REP
 
 
-def finger_path_template(fov, im_width, camera_offset, finger_width=.025, finger_xyz=(.025,.05,.013)):
+def finger_path_template(fov, im_width, camera_offset, finger_width=.025):
     """
     :param fov: camera field of view (radians!!!)
     :param im_width: pixels
     :param camera_offset: distance of camera behind hand
     :return: distance image of the intersection volume of Barrett hand
     """
-    pixels = range(im_width/2)
+    # pixels = range(im_width/2)
+    pixels = range(-im_width/4, im_width/2) # cross centre
     rads_per_pixel = fov / im_width;
     angles = rads_per_pixel * (np.array(pixels).astype(float) + 0.5)
 
-    depths = []
+    single_finger_xyz = (0.,.0396,.0302)
+    double_finger_xyz = (0.025,.0604,.0302)
+
+    single_depths = [] #lone finger
+    double_depths = [] #pair of fingers on other side
     for angle in angles:
-        depths.append(finger_depth(angle, camera_offset, finger_yz=finger_xyz[1:]))
+        single_depths.append(finger_depth(angle, camera_offset, finger_yz=single_finger_xyz[1:]))
+        double_depths.append(finger_depth(angle, camera_offset, finger_yz=double_finger_xyz[1:]))
 
     template = np.zeros((im_width,im_width))
 
-    for pixel in pixels:
-        if depths[pixel] > 0:
-            finger_half_width_rad = np.arctan(finger_width/2./depths[pixel])
+    for i in range(len(pixels)):
+        if single_depths[i] > 0:
+            finger_half_width_rad = np.arctan(finger_width/2./single_depths[i])
             finger_half_width_pixels = finger_half_width_rad / rads_per_pixel
 
             min_finger = int(np.floor(im_width/2-finger_half_width_pixels+.5))
             max_finger = int(np.ceil(im_width/2+finger_half_width_pixels+.5))
-            template[im_width/2-1-pixel,min_finger:max_finger] = depths[pixel] #TODO: clean up offset
+            template[im_width/2-1-pixels[i],min_finger:max_finger] = single_depths[i] #TODO: clean up offset
 
-            finger_x_pixels = np.arctan(finger_xyz[0]/depths[pixel]) /rads_per_pixel # x offset of paired fingers
+        if double_depths[i] > 0:
+            finger_x_pixels = np.arctan(double_finger_xyz[0]/double_depths[i]) / rads_per_pixel # x offset of paired fingers
 
             min_finger = int(np.floor(im_width/2+finger_x_pixels-finger_half_width_pixels+.5))
             max_finger = int(np.ceil(im_width/2+finger_x_pixels+finger_half_width_pixels+.5))
-            template[im_width/2+pixel,min_finger:max_finger] = depths[pixel]
+            template[im_width/2+pixels[i],min_finger:max_finger] = double_depths[i]
 
             min_finger = int(np.floor(im_width/2-finger_x_pixels-finger_half_width_pixels+.5))
             max_finger = int(np.ceil(im_width/2-finger_x_pixels+finger_half_width_pixels+.5))
-            template[im_width/2+pixel,min_finger:max_finger] = depths[pixel]
+            template[im_width/2+pixels[i],min_finger:max_finger] = double_depths[i]
 
-    # plt.imshow(template)
-    # plt.show()
     return template
 
 
@@ -58,9 +63,12 @@ def finger_depth(camera_angle, camera_offset, finger_length=.12, finger_yz=(.05,
     l = finger_length
 
     max_angle = np.arctan((y0+l*np.cos(finger_ext))/(z0+camera_offset+l*np.sin(finger_ext)))
+    # this seems like a reasonable place to stop
+    min_angle = np.arctan((y0+l*np.cos(0.75*np.pi))/(z0+camera_offset+l*np.sin(0.75*np.pi)))
 
     result = 0
-    if camera_angle > -1e-6 and camera_angle < max_angle:
+    # if camera_angle > -1e-6 and camera_angle < max_angle:
+    if camera_angle > min_angle and camera_angle < max_angle:
         # find corresponding finger angle
         f = lambda b: (y0+l*np.sin(b))/(z0+camera_offset+l*np.cos(b)) - np.tan(camera_angle)
         b = newton(f, np.pi/4.)
@@ -195,20 +203,23 @@ if __name__ == '__main__':
     finger_path = finger_path_template(45.*np.pi/180., 80, camera_offset)
     import time
     start_time = time.time()
-    for i in range(1000):
+    for i in range(100):
         mm = calculate_metric_map(distance, finger_path, 1)
     print('elapsed: ' + str(time.time() - start_time))
 
     print(np.min(mm))
     print(np.max(mm))
 
-
     intersections, qualities = calculate_grip_metrics(distance, finger_path)
 
     print(intersections)
 
-    plt.imshow(mm)
-    plt.show()
+    # plt.imshow(mm)
+    # plt.imshow(finger_path)
+    # plt.show()
+
+    from visualize import plot_mesh
+    plot_mesh(finger_path)
 
     # angles = np.arange(0, np.pi/6, np.pi/160)
     # depths = []
