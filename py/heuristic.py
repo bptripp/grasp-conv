@@ -191,46 +191,42 @@ def check_overlap_range(image_dir='../../grasp-conv/data/obj_depths', im_width=8
 
 
 if __name__ == '__main__':
-    camera_offset=.45
-    near_clip=.25
-    far_clip=.8
-
-    import scipy
-    image = scipy.misc.imread('../../grasp-conv/data/obj_depths/1_Coffeecup_final-03-Mar-2016-18-50-40-1.png')
-    rescaled_distance = image / 255.0
-    distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
-
-    finger_path = finger_path_template(45.*np.pi/180., 80, camera_offset)
-    import time
-    start_time = time.time()
-    for i in range(100):
-        mm = calculate_metric_map(distance, finger_path, 1)
-    print('elapsed: ' + str(time.time() - start_time))
-
-    print(np.min(mm))
-    print(np.max(mm))
-
-    intersections, qualities = calculate_grip_metrics(distance, finger_path)
-
-    print(intersections)
-
-    # plt.imshow(mm)
-    # plt.imshow(finger_path)
-    # plt.show()
-
-    from visualize import plot_mesh
-    plot_mesh(finger_path)
-
-    # angles = np.arange(0, np.pi/6, np.pi/160)
-    # depths = []
-    # for angle in angles:
-    #     depths.append(finger_depth(angle, .3))
+    # camera_offset=.45
+    # near_clip=.25
+    # far_clip=.8
     #
-    # import matplotlib.pyplot as plt
-    # plt.plot(angles, depths)
-    # plt.show()
+    # import scipy
+    # image = scipy.misc.imread('../../grasp-conv/data/obj_depths/1_Coffeecup_final-03-Mar-2016-18-50-40-1.png')
+    # rescaled_distance = image / 255.0
+    # distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+    #
+    # finger_path = finger_path_template(45.*np.pi/180., 80, camera_offset)
+    # import time
+    # start_time = time.time()
+    # for i in range(100):
+    #     mm = calculate_metric_map(distance, finger_path, 1)
+    # print('elapsed: ' + str(time.time() - start_time))
+    #
+    # print(np.min(mm))
+    # print(np.max(mm))
+    #
+    # intersections, qualities = calculate_grip_metrics(distance, finger_path)
+    # print(intersections)
+    #
+    # from visualize import plot_mesh
+    # plot_mesh(finger_path)
 
-    # x = .07 + .058*np.cos(40.*np.pi/180.)
-    # y = .058*np.sin(40.*np.pi/180.)
-    # print(np.sqrt(x**2+y**2))
-    # print(np.arctan(.037/.114))
+    # from data import load_all_params
+    # objects, gripper_pos, gripper_orient, labels = load_all_params('../../grasp-conv/data/output_data.csv')
+
+    max_overlaps, labels = check_overlap_range()
+    max_overlaps = np.array(max_overlaps)
+    labels = np.array(labels)
+
+    import cPickle
+    f = open('overlaps.pkl', 'wb')
+    cPickle.dump((max_overlaps, labels), f)
+    f.close()
+
+    plt.plot(max_overlaps)
+    plt.show()

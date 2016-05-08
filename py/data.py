@@ -180,15 +180,20 @@ def load_all_params(param_filename):
     gripper_pos = []
     gripper_orient = []
     labels = []
+    skip_count = 0
     for line in open(param_filename, "r"):
         vals = line.translate(None, '"\n').split(',')
-        if not (vals[0] == 'objfilename') and not vals[0][:-4] in bad:
+        if (vals[0] == 'objfilename'):
+            pass
+        elif vals[0][:-4] in bad:
+            skip_count += 1
+        else:
             objects.append(vals[0])
             gripper_orient.append([float(vals[1]), float(vals[2]), float(vals[3])])
             gripper_pos.append([float(vals[4]), float(vals[5]), float(vals[6])])
             labels.append(int(float(vals[8])))
-        # else:
-        #     print('skipping ' + vals[0])
+
+    print('Skipped ' + str(skip_count) + '; returning ' + str(len(objects)))
 
     return objects, gripper_pos, gripper_orient, labels
 
@@ -587,7 +592,34 @@ def calculate_grasp_metric_maps_for_directory(image_dir, dest_dir, im_width=80,
             Image.fromarray((255.0*mm).astype('uint8')).save(imfile)
 
 
-def compress_images(directory, extension):
+def calculate_overlap_for_directory(image_dir, dest_dir, im_width=80,
+                                          camera_offset=.45, far_clip=.8):
+    from os import listdir
+    from os.path import isfile, join
+    from heuristic import finger_path_template
+
+    finger_path = finger_path_template(45.*np.pi/180., im_width, camera_offset)
+
+    c = 0
+    for f in listdir(image_dir):
+        image_filename = join(image_dir, f)
+        if isfile(image_filename) and f.endswith('.png'):
+            if c % 1000 == 0:
+                print('Processing ' + image_filename)
+            c += 1
+
+            image = scipy.misc.imread(image_filename)
+            rescaled_distance = image / 255.0
+            distance = rescaled_distance*(far_clip-camera_offset)+camera_offset
+
+            overlap = np.maximum(0, finger_path - distance)
+            imfile = dest_dir + f[:-4] + '-overlap' + '.png'
+
+            # we divide by 15.4cm because it's the max overlap due to gripper geometry
+            Image.fromarray((255.0/.154*overlap).astype('uint8')).save(imfile)
+
+
+def compress_images(directory, extension, name='zip'):
     """
     We need this to transfer data to server.
     """
@@ -610,7 +642,7 @@ def compress_images(directory, extension):
         image_filename = join(directory, f)
         if isfile(image_filename) and f.endswith(extension):
             if file_index == 0:
-                zf = ZipFile('obj' + str(zip_index) + '.zip', 'w')
+                zf = ZipFile(name + str(zip_index) + '.zip', 'w')
             zf.write(image_filename)
             file_index += 1
             if file_index == n_per_zip:
@@ -627,8 +659,10 @@ if __name__ == '__main__':
     # plot_bowl_and_box_distance_example()
 
     # compress_images('../../grasp-conv/data/support_depths/', '.png')
-    compress_images('../../grasp-conv/data/obj_depths/', '.png')
+    # compress_images('../../grasp-conv/data/obj_depths/', '.png')
     # compress_images('../../grasp-conv/data/obj_mm/', '.png')
+    # compress_images('../../grasp-conv/data/support_overlap/', '.png', name='support-overlap')
+    compress_images('../../grasp-conv/data/obj_overlap/', '.png', name='obj-overlap')
 
     # calculate_grasp_metric_maps_for_directory('../../grasp-conv/data/obj_depths/', '../../grasp-conv/data/obj_mm/')
     # image = scipy.misc.imread('../../grasp-conv/data/obj_mm/104_toaster_final-18-Dec-2015-13-56-59-0-map.png')
@@ -647,6 +681,10 @@ if __name__ == '__main__':
     # f = file('../data/metrics-objects.pkl', 'wb')
     # cPickle.dump((intersections, qualities, files), f)
     # f.close()
+
+    # calculate_overlap_for_directory('../../grasp-conv/data/obj_depths/', '../../grasp-conv/data/obj_overlap/')
+    # calculate_overlap_for_directory('../../grasp-conv/data/support_depths/', '../../grasp-conv/data/support_overlap/')
+
 
     # f = file('metrics.pkl', 'rb')
     # intersections, qualities = cPickle.load(f)
