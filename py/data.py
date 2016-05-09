@@ -114,7 +114,7 @@ import matplotlib.pyplot as plt
 #     return np.array(depths), np.array(labels)
 
 
-def load_all_params(param_filename):
+def load_all_params(param_filename, return_power_pinch=False):
     """
     Example line from file:
     "104_toaster_final-18-Dec-2015-13-56-59.obj",2.99894,0.034299705,0.4714164,0.09123467,0.0384472,0.5518384,0.0880979987086634,0.0
@@ -180,6 +180,7 @@ def load_all_params(param_filename):
     gripper_pos = []
     gripper_orient = []
     labels = []
+    power_pinch = []
     skip_count = 0
     for line in open(param_filename, "r"):
         vals = line.translate(None, '"\n').split(',')
@@ -192,10 +193,14 @@ def load_all_params(param_filename):
             gripper_orient.append([float(vals[1]), float(vals[2]), float(vals[3])])
             gripper_pos.append([float(vals[4]), float(vals[5]), float(vals[6])])
             labels.append(int(float(vals[8])))
+            power_pinch.append(float(vals[7]))
 
     print('Skipped ' + str(skip_count) + '; returning ' + str(len(objects)))
 
-    return objects, gripper_pos, gripper_orient, labels
+    if return_power_pinch:
+        return objects, gripper_pos, gripper_orient, labels, power_pinch
+    else:
+        return objects, gripper_pos, gripper_orient, labels
 
 
 def make_depth_images(obj_name, pos, rot, obj_dir, image_dir, bottom=0.2, imsize=(80,80),
