@@ -191,10 +191,17 @@ def check_overlap_range(image_dir='../../grasp-conv/data/obj_depths', im_width=8
 
 
 if __name__ == '__main__':
-    # camera_offset=.45
-    # near_clip=.25
-    # far_clip=.8
-    #
+    camera_offset=.45
+    near_clip=.25
+    far_clip=.8
+
+    fov = 45.*np.pi/180.
+    im_width=80
+    template = finger_path_template(fov, im_width, camera_offset)
+    plt.imshow(template)
+    plt.show()
+
+
     # import scipy
     # image = scipy.misc.imread('../../grasp-conv/data/obj_depths/1_Coffeecup_final-03-Mar-2016-18-50-40-1.png')
     # rescaled_distance = image / 255.0
@@ -219,14 +226,15 @@ if __name__ == '__main__':
     # from data import load_all_params
     # objects, gripper_pos, gripper_orient, labels = load_all_params('../../grasp-conv/data/output_data.csv')
 
-    max_overlaps, labels = check_overlap_range()
-    max_overlaps = np.array(max_overlaps)
-    labels = np.array(labels)
-
-    import cPickle
-    f = open('overlaps.pkl', 'wb')
-    cPickle.dump((max_overlaps, labels), f)
-    f.close()
-
-    plt.plot(max_overlaps)
-    plt.show()
+    # # plot max overlaps (sanity check) ...
+    # max_overlaps, labels = check_overlap_range()
+    # max_overlaps = np.array(max_overlaps)
+    # labels = np.array(labels)
+    #
+    # import cPickle
+    # f = open('overlaps.pkl', 'wb')
+    # cPickle.dump((max_overlaps, labels), f)
+    # f.close()
+    #
+    # plt.plot(max_overlaps)
+    # plt.show()
