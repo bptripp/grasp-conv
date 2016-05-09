@@ -16,16 +16,21 @@ from keras.optimizers import Adam
 from data import load_all_params
 
 model = Sequential()
-model.add(Convolution2D(32, 9, 9, input_shape=(2,80,16), init='glorot_normal', border_mode='same'))
+model.add(Convolution2D(64, 7, 7, input_shape=(2,80,16), init='glorot_normal', border_mode='same'))
 model.add(Activation('relu'))
-model.add(Convolution2D(32, 3, 3, init='glorot_normal', border_mode='same'))
+model.add(Convolution2D(64, 3, 3, init='glorot_normal', border_mode='same'))
 model.add(Activation('relu'))
+model.add(Dropout(.5))
+model.add(Convolution2D(64, 3, 3, init='glorot_normal', border_mode='same'))
+model.add(Activation('relu'))
+model.add(Dropout(.5))
 model.add(Flatten())
-model.add(Dense(256))
+model.add(Dense(1024))
 model.add(Activation('relu'))
-model.add(Dense(256))
+model.add(Dropout(.5))
+model.add(Dense(512))
 model.add(Activation('relu'))
-# model.add(Dropout(.1))
+model.add(Dropout(.5))
 model.add(Dense(1))
 model.add(Activation('sigmoid'))
 
@@ -67,12 +72,17 @@ X_valid = np.array(X_valid)
 
 def generate_XY():
     while 1:
-        ind = train_indices[np.random.randint(len(train_indices))]
-        Y = np.zeros((1,1))
-        Y[0,0] = labels[ind,0]
-        X = get_input(objects[ind], seq_nums[ind])
-        X = X[np.newaxis,:,:,:]
-        yield (X, Y)
+        batch_X = []
+        batch_Y = []
+        for i in range(32):
+            ind = train_indices[np.random.randint(len(train_indices))]
+            Y = np.zeros((1))
+            Y[0] = labels[ind,0]
+            X = get_input(objects[ind], seq_nums[ind])
+            #X = X[np.newaxis,:,:,:]
+            batch_X.append(X)
+            batch_Y.append(Y)
+        yield (np.array(batch_X), np.array(batch_Y))
 
 
 # X = get_input(objects[0], 0)
@@ -86,5 +96,14 @@ def generate_XY():
 
 
 h = model.fit_generator(generate_XY(),
-    samples_per_epoch=500, nb_epoch=500,
+    samples_per_epoch=2048, nb_epoch=2500,
     validation_data=(X_valid, Y_valid))
+
+f = file('o-history.pkl', 'wb')
+cPickle.dump(h.history, f)
+f.close()
+
+json_string = model.to_json()
+open('o-model-architecture.json', 'w').write(json_string)
+model.save_weights('o-model-weights.h5', overwrite=True)
+
