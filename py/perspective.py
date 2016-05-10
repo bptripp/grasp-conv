@@ -18,6 +18,11 @@ def get_random_points(n, radius, surface=False):
 
 
 def get_random_angles(n):
+    """
+    :param n: Number of angles needed
+    :return: Random angles in restricted ranges, meant as deviations in perspective around
+        looking staight at something.
+    """
     angles = np.pi/8.*np.random.randn(3, n)
     angles[2,:] = 2*np.pi*np.random.rand(1, n)
     return angles
@@ -28,6 +33,7 @@ def get_rotation_matrix(point, angle):
     :param point: Location of camera
     :param angle: Not what you expect: this is a list of angles relative to looking
         at (0,0,0), about world-z (azimuth), camera-y (elevation), and camera-z (roll).
+        Random samples are produced by get_random_angles().
     :return: just what you expect
     """
     z = -point #location of (0,0,0) relative to point
@@ -198,15 +204,19 @@ def plot_random_samples():
     plt.show()
 
 
-def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.2, far_clip=1.0, fov=45, camera_offset=.4):
+def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.25, far_clip=0.8, fov=45, camera_offset=.45):
     from depthmap import loadOBJ, Display, get_distance
     verts, faces = loadOBJ(obj_filename)
 
     # put vertical centre at zero
     verts = np.array(verts)
-    minz = np.min(verts, axis=0)[2]
-    maxz = np.max(verts, axis=0)[2]
-    verts[:,2] = verts[:,2] - (minz+maxz)/2
+    min_bounding_box = np.min(verts, axis=0)
+    max_bounding_box = np.max(verts, axis=0)
+
+    # set bounding box centre to 0,0,0
+    verts[:,0] = verts[:,0] - (min_bounding_box[0]+max_bounding_box[0])/2.
+    verts[:,1] = verts[:,1] - (min_bounding_box[1]+max_bounding_box[1])/2.
+    verts[:,2] = verts[:,2] - (min_bounding_box[2]+max_bounding_box[2])/2.
 
     d = Display(imsize=(im_width,im_width))
     d.set_perspective(fov=fov, near_clip=near_clip, far_clip=far_clip)
@@ -220,8 +230,6 @@ def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.2, fa
         depth = d.read_depth()
         distance = get_distance(depth, near_clip, far_clip)
         perspectives[i,:,:] = distance
-        # import time
-        # time.sleep(2)
     d.close()
     return perspectives
 
@@ -246,12 +254,14 @@ def process_directory(obj_dir, data_dir, n):
                 perspectives = get_perspectives(obj_filename, points, angles)
 
                 f = open(data_filename, 'wb')
-                cPickle.dump(perspectives, f)
+                cPickle.dump((points, angles, perspectives), f)
                 f.close()
                 print('   ' + str(time.time()-start_time) + 's')
 
 
 def process_eye_directory(obj_dir, data_dir, n):
+    #TODO: save image files here to allow random ordering during training
+
     from os import listdir
     from os.path import isfile, join
     import time
@@ -277,12 +287,16 @@ def process_eye_directory(obj_dir, data_dir, n):
                 perspectives = get_perspectives(obj_filename, points, angles, near_clip=.4, fov=30)
 
                 f = open(data_filename, 'wb')
-                cPickle.dump(perspectives, f)
+                cPickle.dump((points, angles, perspectives), f)
                 f.close()
                 print('   ' + str(time.time()-start_time) + 's')
 
 
 def check_maps(data_dir):
+    """
+    Checks pkl files in given directory to see if any of the depth maps they contain
+    are empty. 
+    """
     from os import listdir
     from os.path import isfile, join
     for f in listdir(data_dir):
@@ -290,7 +304,7 @@ def check_maps(data_dir):
         if isfile(data_filename) and f.endswith('.pkl'):
             print('Checking ' + f)
             f = open(data_filename, 'rb')
-            perspectives = cPickle.load(f)
+            (points, angles, perspectives) = cPickle.load(f)
             f.close()
 
             for i in range(perspectives.shape[0]):
