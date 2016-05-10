@@ -43,10 +43,13 @@ seq_nums = np.arange(len(objects)) % 1000 #exactly 1000 per object in above file
 labels = np.array(labels)[:,np.newaxis]
 
 n = len(objects)
-validation_indices = np.random.randint(0, n, 500) #TODO: generalize across objects
+validation_indices = np.random.randint(0, n, 5000) #TODO: generalize across objects
 s = set(validation_indices)
 train_indices = [x for x in range(n) if x not in s]
 
+f = file('o-valid-ind.pkl', 'wb')
+cPickle.dump(validation_indices, f)
+f.close()
 
 def get_input(object, seq_num):
     image_file = object[:-4] + '-' + str(seq_num) + '-overlap.png'
@@ -96,7 +99,7 @@ def generate_XY():
 
 
 h = model.fit_generator(generate_XY(),
-    samples_per_epoch=2048, nb_epoch=2500,
+    samples_per_epoch=32768, nb_epoch=250,
     validation_data=(X_valid, Y_valid))
 
 f = file('o-history.pkl', 'wb')
