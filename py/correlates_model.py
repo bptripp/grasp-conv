@@ -15,11 +15,12 @@ from keras.optimizers import Adam
 from data import load_all_params
 
 model = Sequential()
-model.add(Dense(256, input_shape=[22]))
+model.add(Dense(256, input_shape=[25]))
 model.add(Activation('relu'))
+model.add(Dropout(.25))
 model.add(Dense(256))
 model.add(Activation('relu'))
-model.add(Dropout(.1))
+model.add(Dropout(.25))
 model.add(Dense(1))
 model.add(Activation('sigmoid'))
 

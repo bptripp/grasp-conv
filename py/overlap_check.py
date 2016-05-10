@@ -9,6 +9,10 @@ from data import load_all_params
 from keras.models import model_from_json
 from overlap_model import get_input
 
+f = open('o-valid-ind.pkl')
+validation_indices = cPickle.load(f)
+f.close()
+
 model = model_from_json(open('o-model-architecture.json').read())
 model.load_weights('o-model-weights.h5')
 
@@ -20,12 +24,11 @@ seq_nums = np.arange(len(objects)) % 1000 #exactly 1000 per object in above file
 
 labels = np.array(labels)[:,np.newaxis]
 
-n = len(objects)
-validation_indices = np.random.randint(0, n, 500) #TODO:
-
 Y_valid = labels[validation_indices,:]
 X_valid = []
 for ind in validation_indices:
     X_valid.append(get_input(objects[ind], seq_nums[ind]))
 X_valid = np.array(X_valid)
 
+predictions = model.predict(X_valid, batch_size=32, verbose=0)
+print(predictions)
