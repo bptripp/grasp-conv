@@ -7,7 +7,22 @@ import cPickle
 from keras.optimizers import Adam
 from data import load_all_params
 from keras.models import model_from_json
-from overlap_model import get_input
+
+
+def get_input(object, seq_num):
+    image_file = object[:-4] + '-' + str(seq_num) + '-overlap.png'
+    X = []
+
+    image_dir = '../../grasp-conv/data/obj_overlap/'
+    image = scipy.misc.imread(join(image_dir, image_file))
+    X.append(image[:,32:48] / 255.0)
+
+    image_dir = '../../grasp-conv/data/support_overlap/'
+    image = scipy.misc.imread(join(image_dir, image_file))
+    X.append(image[:,32:48] / 255.0)
+
+    return np.array(X)
+
 
 f = open('o-valid-ind.pkl')
 validation_indices = cPickle.load(f)
