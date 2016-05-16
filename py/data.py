@@ -316,7 +316,7 @@ def get_points(param_filename):
     return np.array(points), labels
 
 
-def get_prob_label(points, labels, point, sigma_p=.001, sigma_a=(4*np.pi/180)):
+def get_prob_label(points, labels, point, sigma_p=.01, sigma_a=(4*np.pi/180)):
     """
     Gaussian kernel smoothing of success/failure to estimate success probability.
     """
