@@ -12,18 +12,20 @@ def get_random_points(n, radius, surface=False):
     points = radius * point_directions / norms
 
     if not surface:
-        points = points * np.random.rand(n)**(1./3.)
+        # points = points * np.random.rand(n)**(1./3.)
+        palm = .035
+        points = points * (palm + (1-palm)*np.random.rand(n))
 
     return points
 
 
-def get_random_angles(n):
+def get_random_angles(n, std=np.pi/8.):
     """
     :param n: Number of angles needed
     :return: Random angles in restricted ranges, meant as deviations in perspective around
         looking staight at something.
     """
-    angles = np.pi/8.*np.random.randn(3, n)
+    angles = std*np.random.randn(3, n)
     angles[2,:] = 2*np.pi*np.random.rand(1, n)
     return angles
 
@@ -77,6 +79,31 @@ def from_quaternion(e):
           [2*e[1]*e[2]+2*e[3]*e[0], 1-2*e[1]**2-2*e[3]**2, 2*e[2]*e[3]-2*e[1]*e[0]],
           [2*e[1]*e[3]-2*e[2]*e[0], 2*e[2]*e[3]+2*e[1]*e[0], 1-2*e[1]**2-2*e[2]**2]]
     return np.array(rm)
+
+
+def quaterion_product(e1, e2):
+    # from https://en.wikipedia.org/wiki/Quaternion
+    result = [
+        e1[0]*e2[0] - e1[1]*e2[1] - e1[2]*e2[2] - e1[3]*e2[3],
+        e1[0]*e2[1] + e1[1]*e2[0] + e1[2]*e2[3] - e1[3]*e2[2],
+        e1[0]*e2[2] - e1[1]*e2[3] + e1[2]*e2[0] + e1[3]*e2[1],
+        e1[0]*e2[3] + e1[1]*e2[2] - e1[2]*e2[1] + e1[3]*e2[0]
+    ]
+    return np.array(result)
+
+
+def quaternion_conj(e):
+    return np.array([e[0], -e[1], -e[2], -e[3]])
+
+
+def angle_between_quaterions(e1, e2):
+    # from http://math.stackexchange.com/questions/90081/quaternion-distance
+    # return np.arccos(2*(e1[0]*e2[0]+e1[1]*e2[1]+e1[2]*e2[2]+e1[3]*e2[3])-1)
+
+    # from http://math.stackexchange.com/questions/167827/compute-angle-between-quaternions-in-matlab
+    z = quaterion_product(e1, quaternion_conj(e2))
+    # print(z[0])
+    return 2*np.arccos(np.clip(z[0], -1, 1))
 
 
 def check_rotation_matrix(scatter=False):
@@ -248,8 +275,9 @@ def process_directory(obj_dir, data_dir, n):
             else:
                 print('Processing ' + f)
                 start_time = time.time()
-                points = get_random_points(n, .25)
-                angles = get_random_angles(n)
+                points = get_random_points(n, .15)
+                angles = get_random_angles(n, std=0)
+                print(angles)
 
                 perspectives = get_perspectives(obj_filename, points, angles)
 
@@ -295,7 +323,7 @@ def process_eye_directory(obj_dir, data_dir, n):
 def check_maps(data_dir):
     """
     Checks pkl files in given directory to see if any of the depth maps they contain
-    are empty. 
+    are empty.
     """
     from os import listdir
     from os.path import isfile, join
@@ -313,15 +341,201 @@ def check_maps(data_dir):
                     print('   map ' + str(i) + ' is empty')
 
 
+def calculate_metrics(perspective_file, im_width=80, fov=45.0, camera_offset=.45):
+    asymmetry_scale = 13.0 #TODO: calculate from camera params (13 pixels is ~5cm with default params)
+
+    with open(perspective_file) as f:
+        points, angles, perspectives = cPickle.load(f)
+
+    from heuristic import finger_path_template, calculate_grip_metrics
+    finger_path = finger_path_template(fov*np.pi/180., im_width, camera_offset)
+
+    collision_template = np.zeros_like(finger_path)
+    collision_template[finger_path > 0] = camera_offset + 0.033
+
+    # print(np.max(collision_template))
+    # print(np.max(finger_path))
+    # plt.imshow(collision_template)
+    # plt.show()
+
+    metrics = []
+    collisions = []
+    for perspective in perspectives:
+        intersections, qualities = calculate_grip_metrics(perspective, finger_path)
+        q1 = qualities[0]
+        q2 = qualities[1]
+        q3 = qualities[2]
+
+        if intersections[0] is None or intersections[2] is None:
+            a1 = 1
+        else:
+            a1 = ((intersections[0]-intersections[2])/asymmetry_scale)**2
+
+        if intersections[1] is None or intersections[2] is None:
+            a2 = 1
+        else:
+            a2 = ((intersections[1]-intersections[2])/asymmetry_scale)**2
+
+        m = np.minimum((q1+q2)/1.5, q3) / (1 + (q1*a1+q2*a2) / (q1+q2+1e-6))
+
+        collision = np.max(collision_template - perspective) > 0
+        collisions.append(collision)
+        # if collision:
+        #     m = 0
+
+        metrics.append(m)
+
+        # plt.subplot(1,2,1)
+        # plt.imshow(perspective)
+        # plt.subplot(1,2,2)
+        # plt.imshow(np.maximum(0, finger_path-perspective))
+        # print(collision)
+        # print((a1,a2))
+        # print(intersections)
+        # print(qualities)
+        # print('metric: ' + str(m))
+        # plt.show()
+
+        # print((intersections, qualities))
+    return points, angles, metrics, collisions
+
+
+def interpolate(point, angle, points, angles, values, sigma_p=.01, sigma_a=(4*np.pi/180)):
+    """
+    Gaussian kernel smoothing.
+    """
+    # q = to_quaternion(get_rotation_matrix(point, angle))
+    # print(angle)
+
+    weights = np.zeros(len(values))
+    # foo = np.zeros(len(values))
+    # bar = np.zeros(len(values))
+    for i in range(len(values)):
+        # q_i = to_quaternion(get_rotation_matrix(points[:,i], angles[:,i]))
+
+        # print(q_i)
+
+        # angle = angle_between_quaterions(q, q_i)
+        # print(angle)
+
+        position_distance = np.linalg.norm(point - points[:,i])
+        angle_distance = angle[2] - angles[2,i];
+
+        # weights[i] = np.exp( -(angle**2/2/sigma_a**2) )
+        weights[i] = np.exp( -(angle_distance**2/2/sigma_a**2 + position_distance**2/2/sigma_p**2) )
+        # weights[i] = np.exp( -(angle**2/2/sigma_a**2 + distance**2/2/sigma_p**2) )
+        # foo[i] = np.exp( -(angle**2/2/sigma_a**2) )
+        # bar[i] = np.exp( -(distance**2/2/sigma_p**2) )
+
+    # print(weights)
+    # print(np.sum(weights))
+    # print(np.sum(foo))
+    # print(np.sum(bar))
+    return np.sum(weights * np.array(values)) / np.sum(weights)
+
+
+def check_interpolate():
+    point = np.array([0,.1,.1])
+    angle = np.array([0,0,.9])
+    points = np.array([[0,.1,.1], [0,.3,.1]]).T
+    angles = np.array([[0,0,1], [0,0,1]]).T
+    values = np.array([0,1])
+    estimate = interpolate(point, angle, points, angles, values, sigma_p=.01, sigma_a=(4*np.pi/180))
+    print(estimate)
+
+
+def test_interpolation_accuracy(points, angles, metrics, n_examples):
+    """
+    Compare interpolated vs. actual metrics by leaving random
+    examples out of interpolation set and estimating them.
+    """
+    actuals = []
+    interpolateds = []
+    for i in range(n_examples):
+        print(i)
+        one = np.random.randint(0, len(metrics))
+        others = range(one)
+        others.extend(range(one+1, len(metrics)))
+        others = np.array(others)
+
+        actuals.append(metrics[one])
+
+        interpolated = interpolate(points[:,one], angles[:,one], points[:,others], angles[:,others], metrics[others],
+                                   sigma_p=.01, sigma_a=(8*np.pi/180))
+        # interpolated = interpolate(points[:,one], angles[:,one], points[:,include], angles[:,include], metrics[include])
+        interpolateds.append(interpolated)
+        # print(interpolated - metrics[one])
+
+    # print(np.corrcoef(actuals, interpolateds))
+    return actuals, interpolateds
+
+
+def smooth_metrics(points, angles, metrics):
+    smoothed = []
+    for i in range(len(metrics)):
+        print(i)
+        # others = range(i)
+        # others.extend(range(i+1, len(metrics)))
+        # others = np.array(others)
+        #
+        interpolated = interpolate(points[:,i], angles[:,i], points, angles, metrics,
+                                   sigma_p=.02, sigma_a=(16*np.pi/180))
+        # interpolated = interpolate(points[:,one], angles[:,one], points[:,include], angles[:,include], metrics[include])
+        smoothed.append(interpolated)
+        # print(interpolated - metrics[one])
+
+    return smoothed
+
+
+def plot_interp_error_vs_density():
+    with open('spatula-perspectives-smoothed.pkl', 'rb') as f:
+        (points, angles, metrics, collisions, smoothed) = cPickle.load(f)
+    metrics = np.array(metrics)
+    smoothed = np.array(smoothed)
+
+    numbers = [250, 500, 1000, 2000, 4000]
+    metric_errors = []
+    smoothed_errors = []
+    for n in numbers:
+        actuals, interpolateds = test_interpolation_accuracy(points[:,:n], angles[:,:n], metrics[:n], 500)
+        metric_errors.append(np.mean( (np.array(actuals)-np.array(interpolateds))**2 )**.5)
+
+        actuals, interpolateds = test_interpolation_accuracy(points[:,:n], angles[:,:n], smoothed[:n], 500)
+        smoothed_errors.append(np.mean( (np.array(actuals)-np.array(interpolateds))**2 )**.5)
+
+    plt.plot(numbers, smoothed_errors)
+    plt.plot(numbers, metric_errors)
+    plt.show()
+
+
 if __name__ == '__main__':
     # check_rotation_matrix(scatter=True)
     # check_quaternion()
     # check_depth_from_random_perspective()
     # plot_random_samples()
     # check_find_vertical()
+    # check_interpolate()
+    plot_interp_error_vs_density()
+
+    # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
+    # plt.hist(metrics, bins=50)
+    # plt.show()
+    # with open('spatula-perspectives.pkl', 'wb') as f:
+    #     cPickle.dump((points, angles, metrics, collisions), f)
+
+    # with open('spatula-perspectives.pkl', 'rb') as f:
+    #     (points, angles, metrics, collisions) = cPickle.load(f)
+    # # plt.hist(metrics, bins=50)
+    # # # plt.gca().set_yscale("log", nonposy='clip')
+    # # plt.show()
+    # metrics = np.array(metrics)
+    # smoothed = smooth_metrics(points, angles, metrics)
+    # with open('spatula-perspectives-smoothed.pkl', 'wb') as f:
+    #     cPickle.dump((points, angles, metrics, collisions, smoothed), f)
+
 
     # process_directory('../data/obj_files/', '../data/perspectives/', 10)
-    process_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/perspectives/', 3000)
+    # process_directory('../../grasp-conv/data/obj_tmp/', '../../grasp-conv/data/perspectives/', 5000)
     # process_eye_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/eye-perspectives/', 100)
     # check_maps('../../grasp-conv/data/perspectives/')
 
