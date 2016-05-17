@@ -1,5 +1,8 @@
 __author__ = 'bptripp'
 
+from os import listdir
+from os.path import isfile, join
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
@@ -231,7 +234,7 @@ def plot_random_samples():
     plt.show()
 
 
-def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.25, far_clip=0.8, fov=45, camera_offset=.45):
+def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.25, far_clip=0.8, fov=45, camera_offset=.45, target_point=None):
     from depthmap import loadOBJ, Display, get_distance
     verts, faces = loadOBJ(obj_filename)
 
@@ -244,6 +247,11 @@ def get_perspectives(obj_filename, points, angles, im_width=80, near_clip=.25, f
     verts[:,0] = verts[:,0] - (min_bounding_box[0]+max_bounding_box[0])/2.
     verts[:,1] = verts[:,1] - (min_bounding_box[1]+max_bounding_box[1])/2.
     verts[:,2] = verts[:,2] - (min_bounding_box[2]+max_bounding_box[2])/2.
+
+    if target_point is not None:
+        verts[:,0] = verts[:,0] - target_point[0]
+        verts[:,1] = verts[:,1] - target_point[1]
+        verts[:,2] = verts[:,2] - target_point[2]
 
     d = Display(imsize=(im_width,im_width))
     d.set_perspective(fov=fov, near_clip=near_clip, far_clip=far_clip)
@@ -341,11 +349,11 @@ def check_maps(data_dir):
                     print('   map ' + str(i) + ' is empty')
 
 
-def calculate_metrics(perspective_file, im_width=80, fov=45.0, camera_offset=.45):
+def calculate_metrics(perspectives, im_width=80, fov=45.0, camera_offset=.45):
+    """
+    :param perspectives: numpy array of depth images of object from gripper perspective
+    """
     asymmetry_scale = 13.0 #TODO: calculate from camera params (13 pixels is ~5cm with default params)
-
-    with open(perspective_file) as f:
-        points, angles, perspectives = cPickle.load(f)
 
     from heuristic import finger_path_template, calculate_grip_metrics
     finger_path = finger_path_template(fov*np.pi/180., im_width, camera_offset)
@@ -397,7 +405,7 @@ def calculate_metrics(perspective_file, im_width=80, fov=45.0, camera_offset=.45
         # plt.show()
 
         # print((intersections, qualities))
-    return points, angles, metrics, collisions
+    return metrics, collisions
 
 
 def interpolate(point, angle, points, angles, values, sigma_p=.01, sigma_a=(4*np.pi/180)):
@@ -508,6 +516,141 @@ def plot_interp_error_vs_density():
     plt.show()
 
 
+def load_target_points(filename):
+    objects = []
+    indices = []
+    points = []
+    for line in open(filename, "r"):
+        vals = line.translate(None, '"\n').split(',')
+        assert len(vals) == 5
+        objects.append(vals[0])
+        indices.append(int(vals[1]))
+        points.append([float(vals[2]), float(vals[3]), float(vals[4])])
+
+    return objects, indices, points
+
+
+def get_target_points_for_object(objects, indices, points, object):
+    indices_for_object = []
+    points_for_object = []
+    for o, i, p in zip(objects, indices, points):
+        if o == object:
+            indices_for_object.append(i)
+            points_for_object.append(p)
+    return np.array(indices_for_object), np.array(points_for_object)
+
+
+def make_grip_perspective_depths(obj_dir, data_dir, target_points_file, n=1000):
+    objects, indices, points = load_target_points(target_points_file)
+
+    for f in listdir(obj_dir):
+        obj_filename = join(obj_dir, f)
+        if isfile(obj_filename) and f.endswith('.obj'):
+            data_filename = join(data_dir, f[:-4] + '.pkl')
+            if isfile(data_filename):
+                print('Skipping ' + f)
+            else:
+                print('Processing ' + f)
+                target_indices, target_points = get_target_points_for_object(objects, indices, points, f)
+
+                start_time = time.time()
+                #TODO: is there any reason to make points & angles these the same or different across targets?
+                gripper_points = get_random_points(n, .15)
+                gripper_angles = get_random_angles(n, std=0)
+
+                perspectives = []
+                for target_point in target_points:
+                    print('   ' + str(target_point))
+
+                    p = get_perspectives(obj_filename, gripper_points, gripper_angles, target_point=target_point)
+                    perspectives.append(p)
+
+                f = open(data_filename, 'wb')
+                cPickle.dump((gripper_points, gripper_angles, target_indices, target_points, perspectives), f)
+                f.close()
+                print('   ' + str(time.time()-start_time) + 's')
+
+
+def make_metrics(perspective_dir, metric_dir):
+    """
+    We'll store in separate pkl files per object to allow incremental processing, even through results
+    won't take much memory.
+    """
+    # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
+
+    for f in listdir(perspective_dir):
+        perspective_filename = join(perspective_dir, f)
+        if isfile(perspective_filename) and f.endswith('.pkl'):
+            metric_filename = join(metric_dir, f[:-4] + '-metrics.pkl')
+            if isfile(metric_filename):
+                print('Skipping ' + f)
+            else:
+                print('Processing ' + f)
+
+                with open(perspective_filename) as perspective_file:
+                    gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(perspective_file)
+
+                collisions = []
+                # free_metrics = [] #metrics not accounting for collisions
+                free_smoothed = []
+                # coll_metrics = [] #metrics accounting for collisions
+                coll_smoothed = []
+
+                for p in perspectives: # one per target point
+                    fm, c = calculate_metrics(p)
+                    fm = np.array(fm)
+                    c = np.array(c)
+                    fs = smooth_metrics(gripper_points, gripper_angles, fm)
+                    cm = fm * c #TODO: check this
+                    cs = smooth_metrics(gripper_points, gripper_angles, cm)
+
+                    collisions.append(c)
+                    # free_metrics.append(fm)
+                    free_smoothed.append(fs)
+                    # coll_metrics.append(cm)
+                    coll_smoothed.append(cs)
+
+                f = open(metric_filename, 'wb')
+                cPickle.dump((gripper_points, gripper_angles, target_indices, target_points, collisions, free_smoothed, coll_smoothed), f)
+                f.close()
+
+
+def make_eye_perspective_depths(obj_dir, data_dir, target_points_file):
+    objects, target_indices, target_points = load_target_points(target_points_file)
+
+    #TODO: save image files here to allow random ordering during training
+    #TODO: incorporate target points with indices
+
+    for f in listdir(obj_dir):
+        obj_filename = join(obj_dir, f)
+        if isfile(obj_filename) and f.endswith('.obj'):
+            data_filename = join(data_dir, f[:-4] + '.pkl')
+            if isfile(data_filename):
+                print('Skipping ' + f)
+            else:
+                print('Processing ' + f)
+                start_time = time.time()
+                points = get_random_points(n, .35, surface=True) #.75m with offset
+                angles = np.zeros_like(points)
+
+                # Set camera-up to vertical via third angle (angle needed is always
+                # 3pi/4, but we'll find it numerically in case other parts of code
+                # change while we're not looking).
+                for i in range(n):
+                    angles[2,i] = find_vertical(points[:,i])
+
+                perspectives = get_perspectives(obj_filename, points, angles, near_clip=.4, fov=30)
+
+                f = open(data_filename, 'wb')
+                cPickle.dump((points, angles, perspectives), f)
+                f.close()
+                print('   ' + str(time.time()-start_time) + 's')
+
+
+def make_XY():
+    pass
+
+
 if __name__ == '__main__':
     # check_rotation_matrix(scatter=True)
     # check_quaternion()
@@ -515,7 +658,26 @@ if __name__ == '__main__':
     # plot_random_samples()
     # check_find_vertical()
     # check_interpolate()
-    plot_interp_error_vs_density()
+    # plot_interp_error_vs_density()
+
+    # objects, indices, points = load_target_points('../../grasp-conv/data/obj-points.csv')
+    # print(objects)
+    # print(indices)
+    # print(points)
+    # indices, points = get_target_points_for_object(objects, indices, points, '28_Spatula_final-11-Nov-2015-14-22-01.obj')
+    # print(indices)
+    # print(points)
+
+
+    make_grip_perspective_depths('../../grasp-conv/data/obj_tmp2/',
+                                 '../../grasp-conv/data/perspectives/',
+                                 '../../grasp-conv/data/obj-points.csv')
+
+    # with open('spatula-perspectives.pkl', 'rb') as f:
+    #     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(f)
+
+    # make_metrics('../../grasp-conv/data/perspectives/', '../../grasp-conv/data/metrics/')
+    # #TODO: check results
 
     # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
     # plt.hist(metrics, bins=50)
