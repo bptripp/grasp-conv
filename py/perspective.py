@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
 from scipy.optimize import bisect
+from quaternion import angle_between_quaterions, to_quaternion
 
 
 def get_random_points(n, radius, surface=False):
@@ -66,49 +67,6 @@ def get_rotation_matrix(point, angle):
     return np.dot(Rz, np.dot(Ry, Rz2))
 
 
-def to_quaternion(rotation_matrix):
-    # from Siciliano & Khatib pg. 12
-    r = rotation_matrix
-    e0 = .5 * np.sqrt(1 + r[0][0] + r[1][1] + r[2][2])
-    e1 = (r[2][1] - r[1][2]) / (4*e0)
-    e2 = (r[0][2] - r[2][0]) / (4*e0)
-    e3 = (r[1][0] - r[0][1]) / (4*e0)
-    return np.array([e0,e1,e2,e3])
-
-
-def from_quaternion(e):
-    # from http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
-    rm = [[1-2*e[2]**2-2*e[3]**2, 2*e[1]*e[2]-2*e[3]*e[0], 	2*e[1]*e[3]+2*e[2]*e[0]],
-          [2*e[1]*e[2]+2*e[3]*e[0], 1-2*e[1]**2-2*e[3]**2, 2*e[2]*e[3]-2*e[1]*e[0]],
-          [2*e[1]*e[3]-2*e[2]*e[0], 2*e[2]*e[3]+2*e[1]*e[0], 1-2*e[1]**2-2*e[2]**2]]
-    return np.array(rm)
-
-
-def quaterion_product(e1, e2):
-    # from https://en.wikipedia.org/wiki/Quaternion
-    result = [
-        e1[0]*e2[0] - e1[1]*e2[1] - e1[2]*e2[2] - e1[3]*e2[3],
-        e1[0]*e2[1] + e1[1]*e2[0] + e1[2]*e2[3] - e1[3]*e2[2],
-        e1[0]*e2[2] - e1[1]*e2[3] + e1[2]*e2[0] + e1[3]*e2[1],
-        e1[0]*e2[3] + e1[1]*e2[2] - e1[2]*e2[1] + e1[3]*e2[0]
-    ]
-    return np.array(result)
-
-
-def quaternion_conj(e):
-    return np.array([e[0], -e[1], -e[2], -e[3]])
-
-
-def angle_between_quaterions(e1, e2):
-    # from http://math.stackexchange.com/questions/90081/quaternion-distance
-    # return np.arccos(2*(e1[0]*e2[0]+e1[1]*e2[1]+e1[2]*e2[2]+e1[3]*e2[3])-1)
-
-    # from http://math.stackexchange.com/questions/167827/compute-angle-between-quaternions-in-matlab
-    z = quaterion_product(e1, quaternion_conj(e2))
-    # print(z[0])
-    return 2*np.arccos(np.clip(z[0], -1, 1))
-
-
 def check_rotation_matrix(scatter=False):
     from mpl_toolkits.mplot3d import axes3d, Axes3D
 
@@ -145,12 +103,6 @@ def check_rotation_matrix(scatter=False):
     else:
         plt.title('blue axes should point NEAR blue dot (zero)')
     plt.show()
-
-
-def check_quaternion():
-    r = get_rotation_matrix(np.array([.1, -.2, .3]), np.array([.1, .4, 1.5]))
-    error = r - from_quaternion(to_quaternion(r))
-    assert np.std(error.flatten()) < 1e-6
 
 
 def check_depth_from_random_perspective():
@@ -408,77 +360,25 @@ def calculate_metrics(perspectives, im_width=80, fov=45.0, camera_offset=.45):
     return metrics, collisions
 
 
-def interpolate(point, angle, points, angles, values, sigma_p=.01, sigma_a=(4*np.pi/180)):
+def get_quaternion_distance(points, angles):
     """
-    Gaussian kernel smoothing.
+    Get new representation of camera/gripper configurations as rotation quaternions and
+    distances from origin, rather than 3D points and rotations about axis pointing to origin.
     """
-    # q = to_quaternion(get_rotation_matrix(point, angle))
-    # print(angle)
+    # print(points)
+    # print(angles)
+    quaternions = []
+    distances = []
+    for point, angle in zip(points.T, angles.T):
+        distances.append(np.linalg.norm(point))
+        quaternions.append(to_quaternion(get_rotation_matrix(point, angle)))
 
-    weights = np.zeros(len(values))
-    # foo = np.zeros(len(values))
-    # bar = np.zeros(len(values))
-    for i in range(len(values)):
-        # q_i = to_quaternion(get_rotation_matrix(points[:,i], angles[:,i]))
-
-        # print(q_i)
-
-        # angle = angle_between_quaterions(q, q_i)
-        # print(angle)
-
-        position_distance = np.linalg.norm(point - points[:,i])
-        angle_distance = angle[2] - angles[2,i];
-
-        # weights[i] = np.exp( -(angle**2/2/sigma_a**2) )
-        weights[i] = np.exp( -(angle_distance**2/2/sigma_a**2 + position_distance**2/2/sigma_p**2) )
-        # weights[i] = np.exp( -(angle**2/2/sigma_a**2 + distance**2/2/sigma_p**2) )
-        # foo[i] = np.exp( -(angle**2/2/sigma_a**2) )
-        # bar[i] = np.exp( -(distance**2/2/sigma_p**2) )
-
-    # print(weights)
-    # print(np.sum(weights))
-    # print(np.sum(foo))
-    # print(np.sum(bar))
-    return np.sum(weights * np.array(values)) / np.sum(weights)
-
-
-def check_interpolate():
-    point = np.array([0,.1,.1])
-    angle = np.array([0,0,.9])
-    points = np.array([[0,.1,.1], [0,.3,.1]]).T
-    angles = np.array([[0,0,1], [0,0,1]]).T
-    values = np.array([0,1])
-    estimate = interpolate(point, angle, points, angles, values, sigma_p=.01, sigma_a=(4*np.pi/180))
-    print(estimate)
-
-
-def test_interpolation_accuracy(points, angles, metrics, n_examples):
-    """
-    Compare interpolated vs. actual metrics by leaving random
-    examples out of interpolation set and estimating them.
-    """
-    actuals = []
-    interpolateds = []
-    for i in range(n_examples):
-        print(i)
-        one = np.random.randint(0, len(metrics))
-        others = range(one)
-        others.extend(range(one+1, len(metrics)))
-        others = np.array(others)
-
-        actuals.append(metrics[one])
-
-        interpolated = interpolate(points[:,one], angles[:,one], points[:,others], angles[:,others], metrics[others],
-                                   sigma_p=.01, sigma_a=(8*np.pi/180))
-        # interpolated = interpolate(points[:,one], angles[:,one], points[:,include], angles[:,include], metrics[include])
-        interpolateds.append(interpolated)
-        # print(interpolated - metrics[one])
-
-    # print(np.corrcoef(actuals, interpolateds))
-    return actuals, interpolateds
+    return np.array(quaternions), np.array(distances)
 
 
 def smooth_metrics(points, angles, metrics):
+    from interpolate import interpolate
+
     smoothed = []
     for i in range(len(metrics)):
         print(i)
@@ -493,27 +393,6 @@ def smooth_metrics(points, angles, metrics):
         # print(interpolated - metrics[one])
 
     return smoothed
-
-
-def plot_interp_error_vs_density():
-    with open('spatula-perspectives-smoothed.pkl', 'rb') as f:
-        (points, angles, metrics, collisions, smoothed) = cPickle.load(f)
-    metrics = np.array(metrics)
-    smoothed = np.array(smoothed)
-
-    numbers = [250, 500, 1000, 2000, 4000]
-    metric_errors = []
-    smoothed_errors = []
-    for n in numbers:
-        actuals, interpolateds = test_interpolation_accuracy(points[:,:n], angles[:,:n], metrics[:n], 500)
-        metric_errors.append(np.mean( (np.array(actuals)-np.array(interpolateds))**2 )**.5)
-
-        actuals, interpolateds = test_interpolation_accuracy(points[:,:n], angles[:,:n], smoothed[:n], 500)
-        smoothed_errors.append(np.mean( (np.array(actuals)-np.array(interpolateds))**2 )**.5)
-
-    plt.plot(numbers, smoothed_errors)
-    plt.plot(numbers, metric_errors)
-    plt.show()
 
 
 def load_target_points(filename):
@@ -653,12 +532,9 @@ def make_XY():
 
 if __name__ == '__main__':
     # check_rotation_matrix(scatter=True)
-    # check_quaternion()
     # check_depth_from_random_perspective()
     # plot_random_samples()
     # check_find_vertical()
-    # check_interpolate()
-    # plot_interp_error_vs_density()
 
     # objects, indices, points = load_target_points('../../grasp-conv/data/obj-points.csv')
     # print(objects)
