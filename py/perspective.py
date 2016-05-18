@@ -376,19 +376,14 @@ def get_quaternion_distance(points, angles):
     return np.array(quaternions), np.array(distances)
 
 
-def smooth_metrics(points, angles, metrics):
+def smooth_metrics(quaternions, distances, metrics):
     from interpolate import interpolate
 
     smoothed = []
     for i in range(len(metrics)):
-        print(i)
-        # others = range(i)
-        # others.extend(range(i+1, len(metrics)))
-        # others = np.array(others)
-        #
-        interpolated = interpolate(points[:,i], angles[:,i], points, angles, metrics,
-                                   sigma_p=.02, sigma_a=(16*np.pi/180))
-        # interpolated = interpolate(points[:,one], angles[:,one], points[:,include], angles[:,include], metrics[include])
+        # print(i)
+        interpolated = interpolate(quaternions[i], distances[i], quaternions, distances, metrics,
+                                   sigma_d=.02, sigma_a=(20*np.pi/180))
         smoothed.append(interpolated)
         # print(interpolated - metrics[one])
 
@@ -417,6 +412,33 @@ def get_target_points_for_object(objects, indices, points, object):
             indices_for_object.append(i)
             points_for_object.append(p)
     return np.array(indices_for_object), np.array(points_for_object)
+
+
+def check_target_points():
+    objects, indices, points = load_target_points('../../grasp-conv/data/obj-points.csv')
+    print(objects)
+    print(indices)
+    print(points)
+    indices, points = get_target_points_for_object(objects, indices, points, '28_Spatula_final-11-Nov-2015-14-22-01.obj')
+    print(indices)
+    print(points)
+
+
+def check_metrics():
+    # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
+    # with open('spatula-perspectives.pkl', 'wb') as f:
+    #     cPickle.dump((points, angles, metrics, collisions), f)
+
+    with open('spatula-perspectives.pkl', 'rb') as f:
+        (points, angles, metrics, collisions) = cPickle.load(f)
+    metrics = np.array(metrics)
+
+    smoothed = smooth_metrics(points, angles, metrics)
+    with open('spatula-perspectives-smoothed.pkl', 'wb') as f:
+        cPickle.dump((points, angles, metrics, collisions, smoothed), f)
+
+    plt.hist(metrics, bins=50)
+    plt.show()
 
 
 def make_grip_perspective_depths(obj_dir, data_dir, target_points_file, n=1000):
@@ -455,7 +477,6 @@ def make_metrics(perspective_dir, metric_dir):
     We'll store in separate pkl files per object to allow incremental processing, even through results
     won't take much memory.
     """
-    # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
 
     for f in listdir(perspective_dir):
         perspective_filename = join(perspective_dir, f)
@@ -466,31 +487,36 @@ def make_metrics(perspective_dir, metric_dir):
             else:
                 print('Processing ' + f)
 
+                start_time = time.time()
                 with open(perspective_filename) as perspective_file:
                     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(perspective_file)
+                print('unpickle: ' + str(time.time() - start_time))
+
+                quaternions, distances = get_quaternion_distance(gripper_points, gripper_angles)
 
                 collisions = []
-                # free_metrics = [] #metrics not accounting for collisions
                 free_smoothed = []
-                # coll_metrics = [] #metrics accounting for collisions
                 coll_smoothed = []
 
                 for p in perspectives: # one per target point
+                    start_time = time.time()
                     fm, c = calculate_metrics(p)
+                    print('metrics ' + str(time.time()-start_time))
                     fm = np.array(fm)
                     c = np.array(c)
-                    fs = smooth_metrics(gripper_points, gripper_angles, fm)
-                    cm = fm * c #TODO: check this
-                    cs = smooth_metrics(gripper_points, gripper_angles, cm)
+                    fs = smooth_metrics(quaternions, distances, fm)
+                    print('smooth1 ' + str(time.time()-start_time))
+                    cm = fm * (1-c)
+                    cs = smooth_metrics(quaternions, distances, cm)
+                    print('smooth2 ' + str(time.time()-start_time))
 
                     collisions.append(c)
-                    # free_metrics.append(fm)
                     free_smoothed.append(fs)
-                    # coll_metrics.append(cm)
                     coll_smoothed.append(cs)
 
                 f = open(metric_filename, 'wb')
-                cPickle.dump((gripper_points, gripper_angles, target_indices, target_points, collisions, free_smoothed, coll_smoothed), f)
+                cPickle.dump((gripper_points, gripper_angles, target_indices, target_points,
+                              collisions, free_smoothed, coll_smoothed), f)
                 f.close()
 
 
@@ -526,8 +552,25 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file):
                 print('   ' + str(time.time()-start_time) + 's')
 
 
-def make_XY():
+def metrics_at_relative_configurations(eye_quaternion, gripper_quaternions, gripper_distances, metrics, rel_quaternions, rel_distances):
+    """
+    :param eye_quaternion:
+    :param gripper_quaternions:
+    :param gripper_distances:
+    :param metrics:
+    :param rel_quaternions: Angles of gripper approaches relative to eye (a standard list across everything; corresponds to neurons)
+    :param rel_distances: Corresponding distances
+    :return:
+    """
+    #TODO: Calculate gripper quaternions relative to eye
+    #TODO: interpolate to estimate metrics at standard points relative to eye
     pass
+
+
+def make_XY():
+    eye_image_files = []
+    metrics = []
+    return eye_image_files, metrics
 
 
 if __name__ == '__main__':
@@ -535,17 +578,10 @@ if __name__ == '__main__':
     # check_depth_from_random_perspective()
     # plot_random_samples()
     # check_find_vertical()
+    # check_target_points()
+    # check_metrics()
 
-    # objects, indices, points = load_target_points('../../grasp-conv/data/obj-points.csv')
-    # print(objects)
-    # print(indices)
-    # print(points)
-    # indices, points = get_target_points_for_object(objects, indices, points, '28_Spatula_final-11-Nov-2015-14-22-01.obj')
-    # print(indices)
-    # print(points)
-
-
-    make_grip_perspective_depths('../../grasp-conv/data/obj_tmp2/',
+    make_grip_perspective_depths('../../grasp-conv/data/obj_tmp/',
                                  '../../grasp-conv/data/perspectives/',
                                  '../../grasp-conv/data/obj-points.csv')
 
@@ -553,65 +589,10 @@ if __name__ == '__main__':
     #     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(f)
 
     # make_metrics('../../grasp-conv/data/perspectives/', '../../grasp-conv/data/metrics/')
-    # #TODO: check results
 
-    # points, angles, metrics, collisions = calculate_metrics('../../grasp-conv/data/perspectives/28_Spatula_final-11-Nov-2015-14-22-01.pkl')
-    # plt.hist(metrics, bins=50)
-    # plt.show()
-    # with open('spatula-perspectives.pkl', 'wb') as f:
-    #     cPickle.dump((points, angles, metrics, collisions), f)
-
-    # with open('spatula-perspectives.pkl', 'rb') as f:
-    #     (points, angles, metrics, collisions) = cPickle.load(f)
-    # # plt.hist(metrics, bins=50)
-    # # # plt.gca().set_yscale("log", nonposy='clip')
-    # # plt.show()
-    # metrics = np.array(metrics)
-    # smoothed = smooth_metrics(points, angles, metrics)
-    # with open('spatula-perspectives-smoothed.pkl', 'wb') as f:
-    #     cPickle.dump((points, angles, metrics, collisions, smoothed), f)
 
 
     # process_directory('../data/obj_files/', '../data/perspectives/', 10)
     # process_directory('../../grasp-conv/data/obj_tmp/', '../../grasp-conv/data/perspectives/', 5000)
     # process_eye_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/eye-perspectives/', 100)
     # check_maps('../../grasp-conv/data/perspectives/')
-
-    # points = get_random_points(3, .35, surface=True)
-    # print(points)
-    # angles = np.zeros_like(points)
-    # rot = get_rotation_matrix(np.array([-.047, -.249, -.241]), np.array([0, 0, -1.57+3.141]))
-    # print(rot)
-    # print(rot[0][0]**2 + rot[1][0]**2 + rot[2][0]**2)
-
-    # import time
-
-    # obj_name = '24_bowl-02-Mar-2016-07-03-29'
-    # obj_filename = '../data/obj_files/' + obj_name + '.obj'
-    # n = 100
-    # points = get_random_points(n, .25)
-    # angles = get_random_angles(n)
-    #
-    # # start_time = time.time()
-    # perspectives = get_perspectives(obj_filename, points, angles)
-    # # gen_time = time.time() - start_time
-    # # print(gen_time)
-    #
-    # perspective_filename = '../data/perspectives/' + obj_name + '.pkl'
-    # f = open(perspective_filename, 'wb')
-    # cPickle.dump(perspectives, f)
-    # f.close()
-    # # save_time = time.time() - start_time - gen_time
-    # # print(save_time)
-
-    # X = np.arange(0, 80)
-    # Y = np.arange(0, 80)
-    # X, Y = np.meshgrid(X, Y)
-    #
-    # from mpl_toolkits.mplot3d import axes3d, Axes3D
-    # fig = plt.figure()
-    # ax = fig.add_subplot(1,1,1,projection='3d')
-    # ax.plot_wireframe(X, Y, perspectives[0,:,:])
-    # ax.set_xlabel('x')
-    # plt.show()
-

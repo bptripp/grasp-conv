@@ -39,17 +39,31 @@ from quaternion import angle_between_quaterions
 #     return np.sum(weights * np.array(values)) / np.sum(weights)
 
 
-def interpolate(quaternion, distance, quaternions, distances, values, sigma_a=(10*np.pi/180), sigma_d=.01):
+def interpolate(quaternion, distance, quaternions, distances, values, sigma_a=(4*np.pi/180), sigma_d=.01):
     """
     Gaussian kernel smoothing.
     """
     weights = np.zeros(len(values))
+
+    angle_threshold = np.cos(1.25*sigma_a) # I think this corresponds to twice this angle between quaternions
+    distance_threshold = 2.5*sigma_d
+
+    # attempt fast estimate (only considering within-threshold points) ...
+    c = 0
     for i in range(len(values)):
-        angle_difference = angle_between_quaterions(quaternion, quaternions[i])
         distance_difference = np.abs(distance - distances[i])
-        # print('angle difference: ' + str(angle_difference))
-        # print('distance_difference: ' + str(distance_difference))
-        weights[i] = np.exp( -(angle_difference**2/2/sigma_a**2 + distance_difference**2/2/sigma_d**2) )
+        if distance_difference < distance_threshold and np.dot(quaternion, quaternions[i]) > angle_threshold:
+            c += 1
+            angle_difference = np.abs(angle_between_quaterions(quaternion, quaternions[i]))
+            weights[i] = np.exp( -(angle_difference**2/2/sigma_a**2 + distance_difference**2/2/sigma_d**2) )
+
+    # slow estimate if not enough matches ...
+    if c <= 3:
+        print('slow estimate')
+        for i in range(len(values)):
+            distance_difference = np.abs(distance - distances[i])
+            angle_difference = np.abs(angle_between_quaterions(quaternion, quaternions[i]))
+            weights[i] = np.exp( -(angle_difference**2/2/sigma_a**2 + distance_difference**2/2/sigma_d**2) )
 
     # print(weights)
     # print(values)
