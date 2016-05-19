@@ -84,12 +84,16 @@ def difference_between_quaternions(e1, e2):
     # print(e2)
 
     guess = quaterion_product(quaternion_conj(e1), e2)
-    # print(guess)
+    print(guess)
 
     r1 = from_quaternion(e1)
     r2 = from_quaternion(e2)
     guess2 = to_quaternion(np.dot(np.linalg.inv(r1), r2))
-    # print(guess2)
+    print(guess2)
+
+    p = np.array([0, .2, -.4, 1.1])
+    print(quaterion_product(guess, quaterion_product(p, quaternion_conj(guess))))
+    print(quaterion_product(guess2, quaterion_product(p, quaternion_conj(guess2))))
 
     return guess2
 
@@ -113,9 +117,12 @@ def check_quaternion():
 
 
 def check_difference():
-    r1 = np.array([[0.86230895, 0.20974727, -0.46090059],
-        [ 0.50269225, -0.4642552,   0.72922398],
-        [-0.06102276, -0.86050752, -0.50576974]])
+    # r1 = np.array([[0.86230895, 0.20974727, -0.46090059],
+    #     [ 0.50269225, -0.4642552,   0.72922398],
+    #     [-0.06102276, -0.86050752, -0.50576974]])
+    r1 = np.array([[0.31578947, -0.9486833, -0.01664357],
+        [-0.94736842, -0.31622777, 0.0499307],
+        [-0.05263158, 0., -0.998614]])
     r2 = np.array([[1, 0, 0], [0, np.cos(np.pi), -np.sin(np.pi)], [0, np.sin(np.pi), np.cos(np.pi)]])
     # print(r2)
     difference_between_quaternions(to_quaternion(r1), to_quaternion(r2))
@@ -128,21 +135,21 @@ def check_difference():
 
 
 if __name__ == '__main__':
-    check_quaternion()
+    # check_quaternion()
     check_difference()
 
-    r1 = np.array([[0.86230895, 0.20974727, -0.46090059],
-        [ 0.50269225, -0.4642552,   0.72922398],
-        [-0.06102276, -0.86050752, -0.50576974]])
-    r2 = np.array([[1, 0, 0], [0, np.cos(np.pi), -np.sin(np.pi)], [0, np.sin(np.pi), np.cos(np.pi)]])
-    # a = .5*np.pi
-    r3 = np.array([[1, 0, 0], [0, np.cos(a), -np.sin(a)], [0, np.sin(a), np.cos(a)]])
-    e1 = to_quaternion(r1)
-    e2 = to_quaternion(r2)
-    e3 = to_quaternion(r3)
-    # print(e1)
-    # print(e2)
-    # print(np.linalg.norm(e1))
-
-    print(np.dot(e2,e3))
+    # r1 = np.array([[0.86230895, 0.20974727, -0.46090059],
+    #     [ 0.50269225, -0.4642552,   0.72922398],
+    #     [-0.06102276, -0.86050752, -0.50576974]])
+    # r2 = np.array([[1, 0, 0], [0, np.cos(np.pi), -np.sin(np.pi)], [0, np.sin(np.pi), np.cos(np.pi)]])
+    # # a = .5*np.pi
+    # r3 = np.array([[1, 0, 0], [0, np.cos(a), -np.sin(a)], [0, np.sin(a), np.cos(a)]])
+    # e1 = to_quaternion(r1)
+    # e2 = to_quaternion(r2)
+    # e3 = to_quaternion(r3)
+    # # print(e1)
+    # # print(e2)
+    # # print(np.linalg.norm(e1))
+    #
+    # print(np.dot(e2,e3))
 

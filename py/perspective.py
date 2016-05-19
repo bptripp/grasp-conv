@@ -383,7 +383,7 @@ def smooth_metrics(quaternions, distances, metrics):
     for i in range(len(metrics)):
         # print(i)
         interpolated = interpolate(quaternions[i], distances[i], quaternions, distances, metrics,
-                                   sigma_d=.02, sigma_a=(20*np.pi/180))
+                                   sigma_d=.02, sigma_a=(16*np.pi/180))
         smoothed.append(interpolated)
         # print(interpolated - metrics[one])
 
@@ -499,16 +499,12 @@ def make_metrics(perspective_dir, metric_dir):
                 coll_smoothed = []
 
                 for p in perspectives: # one per target point
-                    start_time = time.time()
                     fm, c = calculate_metrics(p)
-                    print('metrics ' + str(time.time()-start_time))
                     fm = np.array(fm)
                     c = np.array(c)
                     fs = smooth_metrics(quaternions, distances, fm)
-                    print('smooth1 ' + str(time.time()-start_time))
                     cm = fm * (1-c)
                     cs = smooth_metrics(quaternions, distances, cm)
-                    print('smooth2 ' + str(time.time()-start_time))
 
                     collisions.append(c)
                     free_smoothed.append(fs)
@@ -581,18 +577,19 @@ if __name__ == '__main__':
     # check_target_points()
     # check_metrics()
 
-    make_grip_perspective_depths('../../grasp-conv/data/obj_tmp/',
-                                 '../../grasp-conv/data/perspectives/',
-                                 '../../grasp-conv/data/obj-points.csv')
+    # make_grip_perspective_depths('../../grasp-conv/data/obj_files/',
+    #                              '/Volumes/TrainingData/grasp-conv/data/perspectives/',
+    #                              '../../grasp-conv/data/obj-points.csv')
 
     # with open('spatula-perspectives.pkl', 'rb') as f:
     #     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(f)
 
     # make_metrics('../../grasp-conv/data/perspectives/', '../../grasp-conv/data/metrics/')
-
-
+    make_metrics('/Volumes/TrainingData/grasp-conv/data/perspectives/',
+                 '/Volumes/TrainingData/grasp-conv/data/metrics/')
 
     # process_directory('../data/obj_files/', '../data/perspectives/', 10)
     # process_directory('../../grasp-conv/data/obj_tmp/', '../../grasp-conv/data/perspectives/', 5000)
     # process_eye_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/eye-perspectives/', 100)
     # check_maps('../../grasp-conv/data/perspectives/')
+
