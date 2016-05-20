@@ -523,9 +523,6 @@ def make_metrics(perspective_dir, metric_dir):
 def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
     all_objects, all_target_indices, all_target_points = load_target_points(target_points_file)
 
-    # with open(rel_points_file, 'rb') as f:
-    #     rel_points = cPickle.load(f)
-
     camera_offset=.45
     near_clip=.6
     far_clip=1.0
@@ -578,6 +575,63 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
     f.close()
 
 
+def make_relative_metrics(eye_perspectives_file, metrics_dir, result_dir, n=500):
+    from quaternion import difference_between_quaternions
+    from interpolate import interpolate
+
+    # each of these points/angles will correspond to an output neuron ...
+    neuron_points = get_random_points(n, .15)
+    neuron_angles = get_random_angles(n, std=0)
+    with open(join(result_dir, 'neuron-points.pkl'), 'wb') as f:
+        cPickle.dump((neuron_points, neuron_angles), f)
+
+    neuron_quaternions, neuron_distances = get_quaternion_distance(neuron_points, neuron_angles)
+
+    with open(eye_perspectives_file) as f:
+        objects, target_indices, target_points, eye_points, eye_angles = cPickle.load(f)
+
+    for object, object_eye_points, object_eye_angles in zip(objects, eye_points, eye_angles):
+        print('Processing ' + object)
+        start_time = time.time()
+        eye_quaternions, eye_distances = get_quaternion_distance(object_eye_points, object_eye_angles)
+
+        metrics_file = join(metrics_dir, object[:-4] + '-metrics.pkl')
+        with open(metrics_file) as f:
+            gripper_points, gripper_angles, target_indices, target_points, collisions, free_smoothed, coll_smoothed = cPickle.load(f)
+        gripper_quaternions, gripper_distances = get_quaternion_distance(gripper_points, gripper_angles)
+
+        # note that for each object, gripper configs are the same relative to each target point
+        #TODO: do we want coll_smoothed instead / as well?
+        metrics = free_smoothed
+
+        # interpolate relative to each eye point
+        neuron_metrics_for_object = []
+        for target_index, target_metrics in zip(target_indices, metrics):
+            print('    target ' + str(target_index))
+            neuron_metrics_for_target = []
+            for eye_quaternion in eye_quaternions:
+                rel_quaternions = []
+                for gripper_quaternion in gripper_quaternions:
+                    rel_quaternions.append(difference_between_quaternions(eye_quaternion, gripper_quaternion))
+                rel_quaternions = np.array(rel_quaternions)
+
+                #interpolate ...
+                neuron_metrics = []
+                for neuron_quaternion, neuron_distance in zip(neuron_quaternions, neuron_distances):
+                    interpolated = interpolate(neuron_quaternion, neuron_distance, rel_quaternions, gripper_distances, target_metrics,
+                                       sigma_d=.02, sigma_a=(16*np.pi/180))
+                    neuron_metrics.append(interpolated)
+
+                neuron_metrics_for_target.append(neuron_metrics)
+            neuron_metrics_for_object.append(neuron_metrics_for_target)
+        neuron_metrics_for_object = np.array(neuron_metrics_for_object)
+
+        result_file = join(result_dir, object[:-4] + '-neuron.pkl')
+        with open(result_file, 'wb') as f:
+            cPickle.dump((target_indices, target_points, object_eye_points, object_eye_angles, neuron_metrics_for_object), f)
+        print('    ' + str(time.time() - start_time) + 's')
+
+
 def metrics_at_relative_configurations(eye_quaternion, gripper_quaternions, gripper_distances, metrics, rel_quaternions, rel_distances):
     """
     :param eye_quaternion:
@@ -607,6 +661,10 @@ if __name__ == '__main__':
     # check_target_points()
     # check_metrics()
 
+    # make_grip_perspective_depths('../../grasp-conv/data/obj_tmp/',
+    #                              '../../grasp-conv/data/perspectives/',
+    #                              '../../grasp-conv/data/obj-points.csv')
+
     # make_grip_perspective_depths('../../grasp-conv/data/obj_files/',
     #                              '/Volumes/TrainingData/grasp-conv/data/perspectives/',
     #                              '../../grasp-conv/data/obj-points.csv')
@@ -615,18 +673,48 @@ if __name__ == '__main__':
     #                             '../../grasp-conv/data/eye-tmp/',
     #                             '../../grasp-conv/data/obj-points.csv')
 
+    make_eye_perspective_depths('../../grasp-conv/data/obj_files/',
+                                '/Volumes/TrainingData/grasp-conv/data/eye-perspectives/',
+                                '../../grasp-conv/data/obj-points.csv')
+    make_relative_metrics('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl',
+                          '/Volumes/TrainingData/grasp-conv/data/metrics/',
+                          '/Volumes/TrainingData/grasp-conv/data/relative/')
+
 
     # import scipy
     # image = scipy.misc.imread('../../grasp-conv/data/eye-tmp/1_Coffeecup_final-03-Mar-2016-18-50-40-0-7.png')
-    #
-    # # print(image[40:50,10:20])
     # plt.imshow(image)
     # plt.show()
+
+    # with open('../../grasp-conv/data/eye-tmp/eye-perspectives.pkl') as f:
+    #     objects, target_indices, target_points, eye_points, eye_angles = cPickle.load(f)
+    # print(objects)
+    # print(target_indices)
+    # print(target_points)
+    # print(np.array(eye_points))
+    # print(np.array(eye_angles))
+
 
     # with open('spatula-perspectives.pkl', 'rb') as f:
     #     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(f)
 
     # make_metrics('../../grasp-conv/data/perspectives/', '../../grasp-conv/data/metrics/')
+
+    # make_relative_metrics('../../grasp-conv/data/eye-tmp/eye-perspectives.pkl',
+    #                       '../../grasp-conv/data/metrics/',
+    #                       '../../grasp-conv/data/relative/')
+
+    # checking files look OK ...
+    # with open('../../grasp-conv/data/relative/neuron-points.pkl', 'rb') as f:
+    #     neuron_points, neuron_angles = cPickle.load(f)
+    # print(neuron_angles.shape)
+    # with open('../../grasp-conv/data/relative/1_Coffeecup_final-03-Mar-2016-18-50-40-neuron.pkl', 'rb') as f:
+    #     target_indices, target_points, object_eye_points, object_eye_angles, neuron_metrics_for_object = cPickle.load(f)
+    # print(neuron_metrics_for_object.shape)
+    # print(np.min(neuron_metrics_for_object))
+    # print(np.max(neuron_metrics_for_object))
+    # print(np.std(neuron_metrics_for_object))
+
     # make_metrics('/Volumes/TrainingData/grasp-conv/data/perspectives/',
     #              '/Volumes/TrainingData/grasp-conv/data/metrics/')
 

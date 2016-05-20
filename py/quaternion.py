@@ -84,16 +84,16 @@ def difference_between_quaternions(e1, e2):
     # print(e2)
 
     guess = quaterion_product(quaternion_conj(e1), e2)
-    print(guess)
+    # print(guess)
 
     r1 = from_quaternion(e1)
     r2 = from_quaternion(e2)
     guess2 = to_quaternion(np.dot(np.linalg.inv(r1), r2))
-    print(guess2)
+    # print(guess2)
 
     p = np.array([0, .2, -.4, 1.1])
-    print(quaterion_product(guess, quaterion_product(p, quaternion_conj(guess))))
-    print(quaterion_product(guess2, quaterion_product(p, quaternion_conj(guess2))))
+    # print(quaterion_product(guess, quaterion_product(p, quaternion_conj(guess))))
+    # print(quaterion_product(guess2, quaterion_product(p, quaternion_conj(guess2))))
 
     return guess2
 

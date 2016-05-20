@@ -58,8 +58,9 @@ def interpolate(quaternion, distance, quaternions, distances, values, sigma_a=(4
             weights[i] = np.exp( -(angle_difference**2/2/sigma_a**2 + distance_difference**2/2/sigma_d**2) )
 
     # slow estimate if not enough matches ...
+    # print(c)
     if c <= 3:
-        print('slow estimate')
+        # print('slow estimate ' + str(c))
         for i in range(len(values)):
             distance_difference = np.abs(distance - distances[i])
             angle_difference = np.abs(angle_between_quaterions(quaternion, quaternions[i]))
