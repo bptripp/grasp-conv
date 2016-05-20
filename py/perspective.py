@@ -534,7 +534,7 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
     target_points = []
     for f in listdir(obj_dir):
         obj_filename = join(obj_dir, f)
-        if isfile(obj_filename) and f.endswith('.obj'):
+        if isfile(obj_filename) and f.endswith('.obj') and int(f[0]) >= 0: #TODO: set f[0] range here
             print('Processing ' + f)
             ti, tp= get_target_points_for_object(all_objects, all_target_indices, all_target_points, f)
             objects.append(f)
@@ -575,15 +575,39 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
     f.close()
 
 
-def make_relative_metrics(eye_perspectives_file, metrics_dir, result_dir, n=500):
+def merge_eye_perspectives(data_dir):
+    # make_eye_perspective_depths mysteriously does not run all the way through, so I've
+    # done it in two parts which are merged here:
+
+    files = ['eye-perspectives1.pkl', 'eye-perspectives2.pkl']
+    objects = []
+    target_indices = []
+    target_points = []
+    eye_points = []
+    eye_angles = []
+    for file in files:
+        with open(join(data_dir, file), 'rb') as f:
+            o, ti, tp, ep, ea = cPickle.load(f)
+            objects.extend(o)
+            target_indices.extend(ti)
+            target_points.extend(tp)
+            eye_points.extend(ep)
+            eye_angles.extend(ea)
+
+    with open(join(data_dir, 'eye-perspectives.pkl'),'wb') as f:
+        cPickle.dump((objects, target_indices, target_points, eye_points, eye_angles), f)
+
+
+def make_relative_metrics(eye_perspectives_file, metrics_dir, result_dir, n=500, neuron_points=None, neuron_angles=None):
     from quaternion import difference_between_quaternions
     from interpolate import interpolate
 
     # each of these points/angles will correspond to an output neuron ...
-    neuron_points = get_random_points(n, .15)
-    neuron_angles = get_random_angles(n, std=0)
-    with open(join(result_dir, 'neuron-points.pkl'), 'wb') as f:
-        cPickle.dump((neuron_points, neuron_angles), f)
+    if neuron_points is None or neuron_angles is None:
+        neuron_points = get_random_points(n, .15)
+        neuron_angles = get_random_angles(n, std=0)
+        with open(join(result_dir, 'neuron-points.pkl'), 'wb') as f:
+            cPickle.dump((neuron_points, neuron_angles), f)
 
     neuron_quaternions, neuron_distances = get_quaternion_distance(neuron_points, neuron_angles)
 
@@ -632,21 +656,6 @@ def make_relative_metrics(eye_perspectives_file, metrics_dir, result_dir, n=500)
         print('    ' + str(time.time() - start_time) + 's')
 
 
-def metrics_at_relative_configurations(eye_quaternion, gripper_quaternions, gripper_distances, metrics, rel_quaternions, rel_distances):
-    """
-    :param eye_quaternion:
-    :param gripper_quaternions:
-    :param gripper_distances:
-    :param metrics:
-    :param rel_quaternions: Angles of gripper approaches relative to eye (a standard list across everything; corresponds to neurons)
-    :param rel_distances: Corresponding distances
-    :return:
-    """
-    #TODO: Calculate gripper quaternions relative to eye
-    #TODO: interpolate to estimate metrics at standard points relative to eye
-    pass
-
-
 def make_XY():
     eye_image_files = []
     metrics = []
@@ -673,9 +682,19 @@ if __name__ == '__main__':
     #                             '../../grasp-conv/data/eye-tmp/',
     #                             '../../grasp-conv/data/obj-points.csv')
 
-    make_eye_perspective_depths('../../grasp-conv/data/obj_files/',
-                                '/Volumes/TrainingData/grasp-conv/data/eye-perspectives/',
-                                '../../grasp-conv/data/obj-points.csv')
+    # make_eye_perspective_depths('../../grasp-conv/data/obj_files/',
+    #                             '/Volumes/TrainingData/grasp-conv/data/eye-perspectives/',
+    #                             '../../grasp-conv/data/obj-points.csv')
+
+    # merge_eye_perspectives('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/')
+    # with open('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl','rb') as f:
+    #     objects, target_indices, target_points, eye_points, eye_angles = cPickle.load(f)
+    # print(objects)
+    # print(target_indices)
+    # print(target_points)
+    # print(eye_angles)
+
+
     make_relative_metrics('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl',
                           '/Volumes/TrainingData/grasp-conv/data/metrics/',
                           '/Volumes/TrainingData/grasp-conv/data/relative/')
