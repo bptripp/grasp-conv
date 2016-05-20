@@ -6,6 +6,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
+from PIL import Image
 from scipy.optimize import bisect
 from quaternion import angle_between_quaterions, to_quaternion
 
@@ -155,20 +156,23 @@ def find_vertical(point):
 
     gamma = bisect(f, 0, np.pi)
 
-    if get_rotation_matrix(point, np.array([0, 0, gamma]))[2][1] < 0:
+    # if get_rotation_matrix(point, np.array([0, 0, gamma]))[2][1] < 0:
+    if get_rotation_matrix(point, np.array([0, 0, gamma]))[2][1] > 0:
         gamma = gamma + np.pi
 
     return gamma
 
 
 def check_find_vertical():
-    n = 10
+    n = 3
     points = get_random_points(n, .35, surface=True)
     for i in range(n):
         point = points[:,i]
         gamma = find_vertical(point)
         rot = get_rotation_matrix(point, np.array([0, 0, gamma]))
-        if np.abs(rot[2,0] > 1e-6) or rot[2,1] < 0:
+        print(rot)
+        # if np.abs(rot[2,0] > 1e-6) or rot[2,1] < 0:
+        if np.abs(rot[2,0] > 1e-6) or rot[2,1] > 0:
             print('error with gamma: ' + str(gamma) + ' should be 0: ' + str(rot[2,0]) + ' should be +ve: ' + str(rot[2,1]))
 
 
@@ -516,36 +520,62 @@ def make_metrics(perspective_dir, metric_dir):
                 f.close()
 
 
-def make_eye_perspective_depths(obj_dir, data_dir, target_points_file):
-    objects, target_indices, target_points = load_target_points(target_points_file)
+def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
+    all_objects, all_target_indices, all_target_points = load_target_points(target_points_file)
 
-    #TODO: save image files here to allow random ordering during training
-    #TODO: incorporate target points with indices
+    # with open(rel_points_file, 'rb') as f:
+    #     rel_points = cPickle.load(f)
 
+    camera_offset=.45
+    near_clip=.6
+    far_clip=1.0
+
+    eye_points = []
+    eye_angles = []
+    objects = []
+    target_indices = []
+    target_points = []
     for f in listdir(obj_dir):
         obj_filename = join(obj_dir, f)
         if isfile(obj_filename) and f.endswith('.obj'):
-            data_filename = join(data_dir, f[:-4] + '.pkl')
-            if isfile(data_filename):
-                print('Skipping ' + f)
-            else:
-                print('Processing ' + f)
-                start_time = time.time()
-                points = get_random_points(n, .35, surface=True) #.75m with offset
-                angles = np.zeros_like(points)
+            print('Processing ' + f)
+            ti, tp= get_target_points_for_object(all_objects, all_target_indices, all_target_points, f)
+            objects.append(f)
+            target_indices.append(ti)
+            target_points.append(tp)
 
-                # Set camera-up to vertical via third angle (angle needed is always
-                # 3pi/4, but we'll find it numerically in case other parts of code
-                # change while we're not looking).
-                for i in range(n):
-                    angles[2,i] = find_vertical(points[:,i])
+            start_time = time.time()
 
-                perspectives = get_perspectives(obj_filename, points, angles, near_clip=.4, fov=30)
+            points = get_random_points(n, .35, surface=True) #.8m with offset
+            angles = np.zeros_like(points)
+            eye_points.append(points)
+            eye_angles.append(angles)
 
-                f = open(data_filename, 'wb')
-                cPickle.dump((points, angles, perspectives), f)
-                f.close()
-                print('   ' + str(time.time()-start_time) + 's')
+            # Set camera-up to vertical via third angle (angle needed is always
+            # 3pi/4, but we'll find it numerically in case other parts of code
+            # change while we're not looking).
+            for i in range(n):
+                angles[2,i] = find_vertical(points[:,i])
+
+            perspectives = []
+            for target_index, target_point in zip(ti, tp):
+                print('   ' + str(target_point))
+                perspectives = get_perspectives(obj_filename, points, angles,
+                                                near_clip=near_clip, far_clip=far_clip, camera_offset=camera_offset,
+                                                fov=30, target_point=target_point)
+
+                for i in range(len(perspectives)):
+                    distance = perspectives[i]
+                    rescaled_distance = np.maximum(0, (distance-camera_offset)/(far_clip-camera_offset))
+                    imfile = data_dir + f[:-4] + '-' + str(target_index) + '-' + str(i) + '.png'
+                    Image.fromarray((255.0*rescaled_distance).astype('uint8')).save(imfile)
+
+            print('   ' + str(time.time()-start_time) + 's')
+
+    data_filename = join(data_dir, 'eye-perspectives.pkl')
+    f = open(data_filename, 'wb')
+    cPickle.dump((objects, target_indices, target_points, eye_points, eye_angles), f)
+    f.close()
 
 
 def metrics_at_relative_configurations(eye_quaternion, gripper_quaternions, gripper_distances, metrics, rel_quaternions, rel_distances):
@@ -581,15 +611,28 @@ if __name__ == '__main__':
     #                              '/Volumes/TrainingData/grasp-conv/data/perspectives/',
     #                              '../../grasp-conv/data/obj-points.csv')
 
+    # make_eye_perspective_depths('../../grasp-conv/data/obj_tmp/',
+    #                             '../../grasp-conv/data/eye-tmp/',
+    #                             '../../grasp-conv/data/obj-points.csv')
+
+
+    # import scipy
+    # image = scipy.misc.imread('../../grasp-conv/data/eye-tmp/1_Coffeecup_final-03-Mar-2016-18-50-40-0-7.png')
+    #
+    # # print(image[40:50,10:20])
+    # plt.imshow(image)
+    # plt.show()
+
     # with open('spatula-perspectives.pkl', 'rb') as f:
     #     gripper_points, gripper_angles, target_indices, target_points, perspectives = cPickle.load(f)
 
     # make_metrics('../../grasp-conv/data/perspectives/', '../../grasp-conv/data/metrics/')
-    make_metrics('/Volumes/TrainingData/grasp-conv/data/perspectives/',
-                 '/Volumes/TrainingData/grasp-conv/data/metrics/')
+    # make_metrics('/Volumes/TrainingData/grasp-conv/data/perspectives/',
+    #              '/Volumes/TrainingData/grasp-conv/data/metrics/')
+
+    # process_eye_directory('../../grasp-conv/data/obj_tmp/', '../../grasp-conv/data/eye-perspectives-tmp/', 100)
 
     # process_directory('../data/obj_files/', '../data/perspectives/', 10)
     # process_directory('../../grasp-conv/data/obj_tmp/', '../../grasp-conv/data/perspectives/', 5000)
-    # process_eye_directory('../../grasp-conv/data/obj_files/', '../../grasp-conv/data/eye-perspectives/', 100)
     # check_maps('../../grasp-conv/data/perspectives/')
 
