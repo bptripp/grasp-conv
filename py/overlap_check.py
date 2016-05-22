@@ -47,3 +47,8 @@ X_valid = np.array(X_valid)
 
 predictions = model.predict(X_valid, batch_size=32, verbose=0)
 print(predictions)
+
+f = open('o-predict.pkl', 'wb')
+cPickle.dump((predictions, Y_valid), f)
+f.close()
+
