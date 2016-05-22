@@ -667,7 +667,8 @@ if __name__ == '__main__':
     # compress_images('../../grasp-conv/data/obj_depths/', '.png')
     # compress_images('../../grasp-conv/data/obj_mm/', '.png')
     # compress_images('../../grasp-conv/data/support_overlap/', '.png', name='support-overlap')
-    compress_images('../../grasp-conv/data/obj_overlap/', '.png', name='obj-overlap')
+    # compress_images('../../grasp-conv/data/obj_overlap/', '.png', name='obj-overlap')
+    compress_images('/Volumes/TrainingData/grasp-conv/data/eye-perspectives', '.png', name='eye-perspectives')
 
     # calculate_grasp_metric_maps_for_directory('../../grasp-conv/data/obj_depths/', '../../grasp-conv/data/obj_mm/')
     # image = scipy.misc.imread('../../grasp-conv/data/obj_mm/104_toaster_final-18-Dec-2015-13-56-59-0-map.png')
