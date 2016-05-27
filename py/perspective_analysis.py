@@ -63,7 +63,7 @@ def plot_predictions():
 
 
 def plot_points_with_correlations():
-    with open('perspective-predictions.pkl') as f:
+    with open('perspective-predictions-big-0.pkl') as f:
         targets, predictions = cPickle.load(f)
 
     n_points = targets.shape[1]
@@ -72,7 +72,7 @@ def plot_points_with_correlations():
     for i in range(n_points):
         r.append(np.corrcoef(targets[:,i], predictions[:,i])[0,1])
 
-    with open('perspective-predictions-better.pkl') as f:
+    with open('perspective-predictions-big-9.pkl') as f:
         targets, predictions = cPickle.load(f)
 
     r_better = []
@@ -98,8 +98,8 @@ def plot_points_with_correlations():
         angles_from_vertical.append(np.arccos(neuron_points[2,i] / norm))
 
     fig = plt.figure()
-    plt.scatter(angles_from_vertical, r, color='r', s=10)
-    plt.scatter(angles_from_vertical, r_better, color='b', s=50)
+    plt.scatter(angles_from_vertical, r, s=30, facecolors='none', edgecolors='r')
+    plt.scatter(angles_from_vertical, r_better, color='r', s=30)
     plt.xlim([0,np.pi])
     plt.ylim([0,1])
     plt.tick_params(axis='both', labelsize=18)
