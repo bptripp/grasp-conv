@@ -108,7 +108,106 @@ def plot_points_with_correlations():
     plt.show()
 
 
+def katsuyama_depths():
+    K = [[-0.1500, -0.1500],
+        [-0.1960, -0.0812],
+        [-0.2121, 0],
+        [-0.1960, 0.0812],
+        [-0.1500, 0.1500],
+        [-0.0812, 0.1960],
+        [0.0000, 0.2121],
+        [0.0812, 0.1960],
+        [0.1500, 0.1500],
+        [-0.2500, -0.2500],
+        [-0.3266, -0.1353],
+        [-0.3536, 0],
+        [-0.3266, 0.1353],
+        [-0.2500, 0.2500],
+        [-0.1353, 0.3266],
+        [0, 0.3536],
+        [0.1353, 0.3266],
+        [0.2500, 0.2500],
+        [0, 0]]
+    K = np.array(K)
+
+    # Original numbers for x and y in cm, whereas we want m. This requires multiplying
+    # by 10000, but such shapes are much sharper than objects, so we drop by 10x
+    print(K)
+    K = 1000. * K
+
+    depths = []
+    for i in range(K.shape[0]):
+        depths.append(katsuyama_depth(K[i,0], K[i,1]))
+    return np.array(depths)
+
+
+def katsuyama_depth(K1, K2, c=.8, im_width=80, fov=30, near_clip=.6, far_clip=1):
+    # note their display was about 36 degrees
+
+    rads_per_pixel = (fov*np.pi/180.) / im_width
+    hor_angles = np.arange(-im_width/2+.5, im_width/2+.5, 1) * rads_per_pixel
+    ver_angles = hor_angles
+
+    ta = np.tan(hor_angles)**2
+    tb = np.tan(ver_angles)**2
+
+    # solve quadratic equation ...
+    b = -1
+    depth = np.zeros((len(ver_angles),len(hor_angles)))
+    for i in range(len(ver_angles)):
+        for j in range(len(hor_angles)):
+            a = .5 * (K1*tb[i] + K2*ta[j])
+
+            if b**2 - 4*a*c < 0:
+                depth[i,j] = far_clip
+            else:
+                # we want the closer hit
+                depth[i,j] = (-b - np.sqrt(b**2 - 4*a*c)) / (2*a)
+    depth = np.minimum(far_clip, np.maximum(near_clip, depth))
+    return depth
+
+
+def get_truncated_model(structure_file, weights_file, n_layers):
+    from keras.models import model_from_json
+    from keras.optimizers import Adam
+    from keras.models import Sequential
+
+    model = model_from_json(open(structure_file).read())
+    model.load_weights(weights_file)
+
+    print(str(len(model.layers)) + ' layers')
+
+    truncated = Sequential()
+    for i in range(n_layers):
+        truncated.add(model.layers[i])
+
+    adam = Adam(lr=0.000001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    truncated.compile(loss='mse', optimizer=adam)
+
+    return truncated
+
+
+def save_katsutama_responses(structure_file, weights_file, n_layers):
+    model = get_truncated_model(structure_file, weights_file, n_layers)
+    x = katsuyama_depths()[:,np.newaxis,:,:]
+    responses = model.predict_on_batch(x)
+    print(responses.shape)
+
+    with open('katsuyama-' + str(n_layers) + '.pkl', 'wb') as f:
+        cPickle.dump(responses, f)
+
+
 if __name__ == '__main__':
     # plot_correct_point_scatter()
-    plot_predictions()
+    # plot_predictions()
     # plot_points_with_correlations()
+
+    # depth = katsuyama_depth(200, -1.5, .8)
+    # depths = katsuyama_depths()
+    # for i in range(depths.shape[0]):
+    #     plt.imshow(depths[i,:,:])
+    #     plt.show()
+
+    layers = [2,4,6,9,12]
+    save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', 1)
+
