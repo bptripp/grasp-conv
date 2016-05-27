@@ -11,7 +11,7 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import Adam
 from keras.models import model_from_json
 
-num_outputs = 25
+num_outputs = 250
 
 def merge_data(rel_dir):
     image_filenames = []
@@ -63,7 +63,7 @@ def get_model():
 
 
 def load_model(weights_file='p-model-weights.h5'):
-    model = model_from_json(open('p-model-architecture.json').read())
+    model = model_from_json(open('p-model-architecture-big.json').read())
     model.load_weights(weights_file)
 
     adam = Adam(lr=0.000001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
@@ -130,17 +130,17 @@ def train_model(model, data_file, image_dir, train_indices, valid_indices):
                 batch_Y.append(Y)
             yield (np.array(batch_X), np.array(batch_Y))
 
-    for i in range(8):
+    for i in range(6,10):
         h = model.fit_generator(generate_XY(),
             samples_per_epoch=8192, nb_epoch=100,
             validation_data=(X_valid, Y_valid))
 
-        with file('p-history-' + str(i) + '.pkl', 'wb') as f:
+        with file('p-history-big-' + str(i) + '.pkl', 'wb') as f:
             cPickle.dump(h.history, f)
 
         json_string = model.to_json()
-        open('p-model-architecture.json', 'w').write(json_string)
-        model.save_weights('p-model-weights-' + str(i) + '.h5', overwrite=True)
+        open('p-model-architecture-big.json', 'w').write(json_string)
+        model.save_weights('p-model-weights-big-' + str(i) + '.h5', overwrite=True)
 
 
 def predict(model, image_dir, data_file, indices):
@@ -158,19 +158,19 @@ if __name__ == '__main__':
     train_indices = [x for x in range(75000) if x not in s]
 
     #model = get_model()
-    #model = load_model()
+    #model = load_model(weights_file='p-model-weights-big-9.h5')
     #train_model(model,
     #            'perspective-data-big.pkl',
     #            '../../grasp-conv/data/eye-perspectives',
     #            train_indices,
     #            valid_indices)
 
-    model = load_model(weights_file='p-model-weights-7.h5')
+    model = load_model(weights_file='p-model-weights-big-9.h5')
     targets, predictions = predict(model, 
                  '../../grasp-conv/data/eye-perspectives',
                  'perspective-data-big.pkl',
                  valid_indices) 
-    with open('perspective-predictions-better.pkl', 'wb') as f:
+    with open('perspective-predictions-big-9.pkl', 'wb') as f:
         cPickle.dump((targets, predictions), f)
 
 
