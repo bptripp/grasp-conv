@@ -158,11 +158,14 @@ def katsuyama_depth(K1, K2, c=.8, im_width=80, fov=30, near_clip=.6, far_clip=1)
         for j in range(len(hor_angles)):
             a = .5 * (K1*tb[i] + K2*ta[j])
 
-            if b**2 - 4*a*c < 0:
+            if np.abs(a) < 1e-6:
+                depth[i,j] = c
+            elif b**2 - 4*a*c < 0:
                 depth[i,j] = far_clip
             else:
                 # we want the closer hit
                 depth[i,j] = (-b - np.sqrt(b**2 - 4*a*c)) / (2*a)
+
     depth = np.minimum(far_clip, np.maximum(near_clip, depth))
     return depth
 
@@ -216,15 +219,15 @@ if __name__ == '__main__':
 
     # depth = katsuyama_depth(200, -1.5, .8)
 
-    # depths = katsuyama_depths()
-    # for i in range(depths.shape[0]):
-    #     plt.imshow(depths[i,:,:])
-    #     print(depths[i,0,:])
-    #     plt.show()
+    depths = katsuyama_depths()
+    for i in range(depths.shape[0]):
+        plt.imshow(depths[i,:,:])
+        print(depths[i,0,:])
+        plt.show()
 
-    layers = [2,4,6,9,12]
-    for l in layers:
-        print('running ' + str(l) + ' layers')
-        save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+    # layers = [2,4,6,9,12]
+    # for l in layers:
+    #     print('running ' + str(l) + ' layers')
+    #     save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
 
     # plot_katsuyama_responses(9)
