@@ -18,7 +18,7 @@ def get_random_points(n, radius, surface=False):
 
     if not surface:
         # points = points * np.random.rand(n)**(1./3.)
-        palm = .035
+        palm = .035 #TODO: whoops, this is in metres, not fraction of radius
         points = points * (palm + (1-palm)*np.random.rand(n))
 
     return points

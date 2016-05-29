@@ -5,7 +5,7 @@ import cPickle
 import matplotlib.pyplot as plt
 import scipy.misc
 import numpy as np
-from perspective import get_rotation_matrix
+from perspective import get_rotation_matrix, get_random_points
 
 def plot_correct_point_scatter():
     n_points = 200
@@ -207,10 +207,44 @@ def plot_katsuyama_responses(n_layers):
     if len(data.shape) == 4:
         data = data[:,:,40,40]
 
-    print(data - data[0,:])
+    print(data.shape)
+    data = data - data[18,:] #18 is the flat background
+    data = data / np.max(np.abs(data), axis=0) # dead units will be nan, not plotted
 
-    plt.plot(range(19), data - data[0,:])
+    # plt.plot(np.max(data, axis=0))
+    # plt.imshow(data)
+    # plt.hist(data)
+    plt.plot(range(19), data)
     plt.show()
+
+
+def sketch_perspectives(n_plot=100, offset_radius=0.):
+    np.random.seed(1)
+
+    sketch_points = np.array(
+        [[0., 0., 0., 0., 0., 0.],
+         [-.05, -.05, -.03, .03, .05, .05],
+         [.05, .03, 0, 0, .03, .05]]
+    )
+
+    with open('../../grasp-conv/data/relative/neuron-points.pkl', 'rb') as f:
+        neuron_points, neuron_angles = cPickle.load(f)
+
+    offsets = get_random_points(n_plot, offset_radius, surface=False)
+
+    from mpl_toolkits.mplot3d import axes3d, Axes3D
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1,projection='3d')
+    for point, angle, offset in zip(neuron_points.T[:n_plot], neuron_angles.T[:n_plot], offsets.T):
+        r = get_rotation_matrix(point, angle)
+        r = np.eye(3)
+        sp = np.dot(r, sketch_points) + point[:,np.newaxis] + offset[:,np.newaxis]
+        ax.plot(sp[0], sp[1], sp[2], 'k')
+
+    plt.axis('off')
+    plt.savefig('perspective-sketch.pdf')
+    plt.show()
+
 
 if __name__ == '__main__':
     # plot_correct_point_scatter()
@@ -219,15 +253,18 @@ if __name__ == '__main__':
 
     # depth = katsuyama_depth(200, -1.5, .8)
 
-    depths = katsuyama_depths()
-    for i in range(depths.shape[0]):
-        plt.imshow(depths[i,:,:])
-        print(depths[i,0,:])
-        plt.show()
+    # depths = katsuyama_depths()
+    # for i in range(depths.shape[0]):
+    #     plt.imshow(depths[i,:,:])
+    #     print(depths[i,0,:])
+    #     plt.show()
 
     # layers = [2,4,6,9,12]
     # for l in layers:
     #     print('running ' + str(l) + ' layers')
     #     save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
 
-    # plot_katsuyama_responses(9)
+    # plot_katsuyama_responses(12)
+
+    # sketch_perspectives(n_plot=300, offset_radius=.15)
+    sketch_perspectives(n_plot=1, offset_radius=.0)
