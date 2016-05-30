@@ -598,6 +598,44 @@ def merge_eye_perspectives(data_dir):
         cPickle.dump((objects, target_indices, target_points, eye_points, eye_angles), f)
 
 
+def export_neuron_perspectives():
+    import csv
+
+    with open('../data/neuron-points.pkl', 'rb') as f:
+        neuron_points, neuron_angles = cPickle.load(f)
+
+    with open('neuron-perspectives.csv', 'wb') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+
+        for point, angle in zip(neuron_points.T, neuron_angles.T):
+            R = get_rotation_matrix(point, angle)
+            row = list(point)
+            row.extend(R.flatten())
+            writer.writerow(row)
+
+
+def export_eye_perspectives(eye_perspectives_file):
+    import csv
+
+    with open(eye_perspectives_file) as f:
+        objects, target_indices, target_points, eye_points, eye_angles = cPickle.load(f)
+
+    with open('eye-perspectives.csv', 'wb') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+
+        for object, ep, ea, tp in zip(objects, eye_points, eye_angles, target_points):
+            print('Processing ' + object)
+            for target_point in tp:
+                for eye_point, eye_angle in zip(ep.T, ea.T):
+                    eye_R = get_rotation_matrix(eye_point, eye_angle)
+                    # row = [object]
+                    row = []
+                    row.extend(target_point)
+                    row.extend(eye_point)
+                    row.extend(eye_R.flatten())
+                    writer.writerow(row)
+
+
 def make_relative_metrics(eye_perspectives_file, metrics_dir, result_dir, n=500, neuron_points=None, neuron_angles=None):
     from quaternion import difference_between_quaternions
     from interpolate import interpolate
@@ -694,11 +732,12 @@ if __name__ == '__main__':
     # print(target_points)
     # print(eye_angles)
 
+    # make_relative_metrics('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl',
+    #                       '/Volumes/TrainingData/grasp-conv/data/metrics/',
+    #                       '/Volumes/TrainingData/grasp-conv/data/relative/')
 
-    make_relative_metrics('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl',
-                          '/Volumes/TrainingData/grasp-conv/data/metrics/',
-                          '/Volumes/TrainingData/grasp-conv/data/relative/')
-
+    # export_neuron_perspectives()
+    export_eye_perspectives('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl')
 
     # import scipy
     # image = scipy.misc.imread('../../grasp-conv/data/eye-tmp/1_Coffeecup_final-03-Mar-2016-18-50-40-0-7.png')
