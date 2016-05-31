@@ -1,5 +1,7 @@
 __author__ = 'bptripp'
 
+# CNN with support and object depth maps as input.
+
 import numpy as np
 from os.path import join
 import scipy

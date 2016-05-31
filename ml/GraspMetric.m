@@ -12,7 +12,7 @@ classdef GraspMetric < handle
 
     methods (Access = public)
         function gm = GraspMetric(objFile)
-            javaaddpath '/Users/bptripp/code/grasp_db/src/matlab/matlab/ray/ray.jar'            
+%             javaaddpath '/Users/bptripp/code/grasp_db/src/matlab/matlab/ray/ray.jar'            
             
             gm.obj = GraspMetric.getObj(objFile);
             gm.tree = GraspMetric.getAABBTree(gm.obj);
