@@ -1,10 +1,26 @@
 __author__ = 'bptripp'
 
+import cPickle
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 from data import get_prob_label, get_points
 from depthmap import rot_matrix, loadOBJ
+
+def export_overlap_results():
+    with open('o-predict.pkl', 'rb') as f:
+        outputs, targets = cPickle.load(f)
+
+    print(outputs.shape)
+    print(targets.shape)
+
+    with open('o-predict.csv', 'wb') as f:
+        writer = csv.writer(f, delimiter=',')
+
+        for output, target in zip(outputs, targets):
+            writer.writerow([output[0], target[0]])
+
 
 def plot_success_prob():
     shape = '24_bowl-02-Mar-2016-07-03-29'
@@ -60,5 +76,5 @@ def plot_success_prob():
     plt.show()
 
 if __name__ == '__main__':
-    plot_success_prob()
-
+    # plot_success_prob()
+    export_overlap_results()
