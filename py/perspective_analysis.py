@@ -219,15 +219,15 @@ if __name__ == '__main__':
 
     # depth = katsuyama_depth(200, -1.5, .8)
 
-    depths = katsuyama_depths()
-    for i in range(depths.shape[0]):
-        plt.imshow(depths[i,:,:])
-        print(depths[i,0,:])
-        plt.show()
+    #depths = katsuyama_depths()
+    #for i in range(depths.shape[0]):
+    #    plt.imshow(depths[i,:,:])
+    #    print(depths[i,0,:])
+    #    plt.show()
 
-    # layers = [2,4,6,9,12]
-    # for l in layers:
-    #     print('running ' + str(l) + ' layers')
-    #     save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+    layers = [2,4,6,9,12]
+    for l in layers:
+        print('running ' + str(l) + ' layers')
+        save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
 
     # plot_katsuyama_responses(9)
