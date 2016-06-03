@@ -45,15 +45,17 @@ def plot_correct_point_scatter():
 
 
 def plot_predictions():
-    with open('perspective-predictions-better.pkl') as f:
+    # with open('perspective-predictions-better.pkl') as f:
+    with open('perspective-predictions-ray.pkl') as f:
         targets, predictions = cPickle.load(f)
-    # print(targets.shape)
-    # print(predictions.shape)
+    targets = targets.astype(float)
 
     plt.figure(figsize=(9,6))
     for i in range(25):
         plt.subplot(5,5,i)
         plt.scatter(targets[:,i], predictions[:,i], s=1)
+        cc = np.corrcoef(targets[:,i], predictions[:,i])
+        print(cc[0,1])
         c = np.corrcoef(targets[:,i], predictions[:,i])[0,1]
         plt.gca().axes.xaxis.set_ticks([])
         plt.gca().axes.yaxis.set_ticks([])
@@ -73,7 +75,9 @@ def plot_points_with_correlations():
         r.append(np.corrcoef(targets[:,i], predictions[:,i])[0,1])
 
     with open('perspective-predictions-big-9.pkl') as f:
+    # with open('perspective-predictions-ray.pkl') as f:
         targets, predictions = cPickle.load(f)
+    # targets = targets.astype(float)
 
     r_better = []
     for i in range(n_points):
@@ -200,6 +204,25 @@ def save_katsutama_responses(structure_file, weights_file, n_layers):
         cPickle.dump(responses, f)
 
 
+def save_murata_respones(structure_file, weights_file, n_layers):
+    from perspective_model import get_input
+
+    model = get_truncated_model(structure_file, weights_file, n_layers)
+
+    X = []
+    image_dir = '../grasp-conv/data/eye-perspectives-murata/good'
+    X.append(get_input(image_dir, 'Cube 10 X 10 X 10-0-0.png')[np.newaxis,:])
+    X.append(get_input(image_dir, 'Cylinder 45 X 5-0-0.png')[np.newaxis,:])
+    X.append(get_input(image_dir, 'Ring - 15-0-0.png')[np.newaxis,:])
+    X.append(get_input(image_dir, 'Sphere - 10-0-0.png')[np.newaxis,:])
+    X = np.array(X)
+    X = X[:,np.newaxis,:,:]
+
+    responses = model.predict_on_batch(X)
+    with open('murata-' + str(n_layers) + '.pkl', 'wb') as f:
+        cPickle.dump(responses, f)
+
+
 def plot_katsuyama_responses(n_layers):
     with open('../data/katsuyama-' + str(n_layers) + '.pkl') as f:
         data = cPickle.load(f)
@@ -259,12 +282,13 @@ if __name__ == '__main__':
     #     print(depths[i,0,:])
     #     plt.show()
 
-    # layers = [2,4,6,9,12]
-    # for l in layers:
-    #     print('running ' + str(l) + ' layers')
-    #     save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+    layers = [2,4,6,9,12]
+    for l in layers:
+        print('running ' + str(l) + ' layers')
+        # save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+        save_murata_respones('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
 
     # plot_katsuyama_responses(12)
 
     # sketch_perspectives(n_plot=300, offset_radius=.15)
-    sketch_perspectives(n_plot=1, offset_radius=.0)
+    # sketch_perspectives(n_plot=1, offset_radius=.0)

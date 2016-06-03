@@ -534,7 +534,7 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
     target_points = []
     for f in listdir(obj_dir):
         obj_filename = join(obj_dir, f)
-        if isfile(obj_filename) and f.endswith('.obj') and int(f[0]) >= 0: #TODO: set f[0] range here
+        if isfile(obj_filename) and f.endswith('.obj'): #and int(f[0]) >= 0: #TODO: set f[0] range here
             print('Processing ' + f)
             ti, tp= get_target_points_for_object(all_objects, all_target_indices, all_target_points, f)
             objects.append(f)
@@ -543,7 +543,13 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
 
             start_time = time.time()
 
-            points = get_random_points(n, .35, surface=True) #.8m with offset
+            # points = get_random_points(n, .35, surface=True) #.8m with offset
+            # points = np.array([[-0.3], [-0.05], [.0]])
+            # points = np.array([[ 0.17609297], [-0.23676614], [-0.18823671]])
+            points = np.array([[ 0.00001], [0.35], [0.00001]]) # TODO: bug with x=0 and with z=0
+
+            print(points)
+
             angles = np.zeros_like(points)
             eye_points.append(points)
             eye_angles.append(angles)
@@ -569,7 +575,7 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
 
             print('   ' + str(time.time()-start_time) + 's')
 
-    data_filename = join(data_dir, 'eye-perspectives.pkl')
+    data_filename = join(data_dir, 'eye-perspectives-murata.pkl')
     f = open(data_filename, 'wb')
     cPickle.dump((objects, target_indices, target_points, eye_points, eye_angles), f)
     f.close()
@@ -720,6 +726,11 @@ if __name__ == '__main__':
     #                             '../../grasp-conv/data/eye-tmp/',
     #                             '../../grasp-conv/data/obj-points.csv')
 
+    make_eye_perspective_depths('../../grasp-conv/data/obj_files_murata/',
+                                '../../grasp-conv/data/eye-perspectives-murata/',
+                                '../../grasp-conv/data/obj-points-murata.csv',
+                                n=1)
+
     # make_eye_perspective_depths('../../grasp-conv/data/obj_files/',
     #                             '/Volumes/TrainingData/grasp-conv/data/eye-perspectives/',
     #                             '../../grasp-conv/data/obj-points.csv')
@@ -737,7 +748,7 @@ if __name__ == '__main__':
     #                       '/Volumes/TrainingData/grasp-conv/data/relative/')
 
     # export_neuron_perspectives()
-    export_eye_perspectives('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl')
+    # export_eye_perspectives('/Volumes/TrainingData/grasp-conv/data/eye-perspectives/eye-perspectives.pkl')
 
     # import scipy
     # image = scipy.misc.imread('../../grasp-conv/data/eye-tmp/1_Coffeecup_final-03-Mar-2016-18-50-40-0-7.png')
