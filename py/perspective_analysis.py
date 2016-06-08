@@ -241,6 +241,23 @@ def plot_katsuyama_responses(n_layers):
     plt.show()
 
 
+def plot_murata_responses(n_layers):
+    with open('murata-' + str(n_layers) + '.pkl') as f:
+        data = cPickle.load(f)
+
+    if len(data.shape) == 4:
+        data = data[:,:,40,40]
+
+    print(data.shape)
+    # data = data - data[18,:] #18 is the flat background
+    data = data / np.max(np.abs(data), axis=0) # dead units will be nan, not plotted
+
+    # plt.plot(np.max(data, axis=0))
+    # plt.imshow(data)
+    # plt.hist(data)
+    plt.plot(data)
+    plt.show()
+
 def sketch_perspectives(n_plot=100, offset_radius=0.):
     np.random.seed(1)
 
@@ -282,13 +299,14 @@ if __name__ == '__main__':
     #     print(depths[i,0,:])
     #     plt.show()
 
-    layers = [2,4,6,9,12]
-    for l in layers:
-        print('running ' + str(l) + ' layers')
-        # save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
-        save_murata_respones('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+    # layers = [2,4,6,9,12]
+    # for l in layers:
+    #     print('running ' + str(l) + ' layers')
+    #     # save_katsutama_responses('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
+    #     save_murata_respones('p-model-architecture-big.json', 'p-model-weights-big-9.h5', l)
 
     # plot_katsuyama_responses(12)
+    plot_murata_responses(4)
 
     # sketch_perspectives(n_plot=300, offset_radius=.15)
     # sketch_perspectives(n_plot=1, offset_radius=.0)

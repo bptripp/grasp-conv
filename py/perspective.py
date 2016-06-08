@@ -543,10 +543,8 @@ def make_eye_perspective_depths(obj_dir, data_dir, target_points_file, n=20):
 
             start_time = time.time()
 
-            # points = get_random_points(n, .35, surface=True) #.8m with offset
-            # points = np.array([[-0.3], [-0.05], [.0]])
-            # points = np.array([[ 0.17609297], [-0.23676614], [-0.18823671]])
-            points = np.array([[ 0.00001], [0.35], [0.00001]]) # TODO: bug with x=0 and with z=0
+            points = get_random_points(n, .35, surface=True) #.8m with offset
+            # points = np.array([[ 0.00001], [0.35], [0.00001]]) # TODO: bug with x=0 and with z=0
 
             print(points)
 
