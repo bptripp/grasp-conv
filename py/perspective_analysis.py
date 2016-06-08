@@ -210,11 +210,11 @@ def save_murata_respones(structure_file, weights_file, n_layers):
     model = get_truncated_model(structure_file, weights_file, n_layers)
 
     X = []
-    image_dir = '../grasp-conv/data/eye-perspectives-murata/good'
-    X.append(get_input(image_dir, 'Cube 10 X 10 X 10-0-0.png')[np.newaxis,:])
-    X.append(get_input(image_dir, 'Cylinder 45 X 5-0-0.png')[np.newaxis,:])
-    X.append(get_input(image_dir, 'Ring - 15-0-0.png')[np.newaxis,:])
-    X.append(get_input(image_dir, 'Sphere - 10-0-0.png')[np.newaxis,:])
+    image_dir = '../../grasp-conv/data/eye-perspectives-murata/good'
+    X.append(get_input(image_dir, 'Cube 10 X 10 X 10-0-0.png'))
+    X.append(get_input(image_dir, 'Cylinder 45 X 5-0-0.png'))
+    X.append(get_input(image_dir, 'Ring - 15-0-0.png'))
+    X.append(get_input(image_dir, 'Sphere - 10-0-0.png'))
     X = np.array(X)
     X = X[:,np.newaxis,:,:]
 
